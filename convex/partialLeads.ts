@@ -33,7 +33,20 @@ export const capturePartialLead = mutation({
 		email: v.optional(v.string()),
 		formAnswers: v.optional(v.string()),
 	},
-	handler: async (ctx, args) => {
+	handler: async (ctx, rawArgs) => {
+		// Sécurité (M2) : borne la taille des entrées publiques non authentifiées
+		// pour éviter le stockage de payloads arbitrairement gros. Troncature
+		// silencieuse — aucune saisie légitime n'atteint ces limites.
+		const args = {
+			...rawArgs,
+			firstName: rawArgs.firstName.slice(0, 200),
+			lastName: rawArgs.lastName.slice(0, 200),
+			phone: rawArgs.phone.slice(0, 40),
+			email: rawArgs.email?.slice(0, 320),
+			formAnswers: rawArgs.formAnswers?.slice(0, 20_000),
+			sessionId: rawArgs.sessionId.slice(0, 128),
+		};
+
 		// 1. Resolve event
 		const event = await ctx.db
 			.query("events")
