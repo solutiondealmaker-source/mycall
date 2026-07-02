@@ -1,0 +1,30 @@
+services:
+  app:
+    # Replace <your-org> with your GitHub org/user, or build locally with
+    # `docker compose build` (uncomment the build line below).
+    image: ghcr.io/<your-org>/iclone:latest
+    # build: .
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Runtime env vars (secrets, server-side only — NOT baked in image).
+    # On VPS: cp .env.example .env.local then fill in real values.
+    env_file:
+      - .env.local
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    networks:
+      - iclone
+
+networks:
+  iclone:
+    driver: bridge
