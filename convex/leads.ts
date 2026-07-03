@@ -5,15 +5,32 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
 	internalMutation,
 	internalQuery,
 	mutation,
 	query,
 } from "./_generated/server";
-import { requireAdmin, requireAuth } from "./lib/auth";
+import { getAuthenticatedUser, isAdminUser, requireAuth } from "./lib/auth";
 import { normalizeEmail, normalizePhone } from "./lib/leadMatch";
+
+// ============================================================
+// ROLE SCOPING — cloisonnement CRM
+// Non-admins ne voient/modifient que LEURS leads (closerUserId ou
+// setterUserId == eux). Admin/direction (isAdminUser) voient tout.
+// ============================================================
+
+async function getLeadScope(
+	ctx: QueryCtx | MutationCtx,
+): Promise<{ userId: Id<"users">; seeAll: boolean }> {
+	const user = await getAuthenticatedUser(ctx);
+	return { userId: user._id, seeAll: isAdminUser(user) };
+}
+
+function ownsLead(lead: Doc<"leads">, userId: Id<"users">): boolean {
+	return lead.closerUserId === userId || lead.setterUserId === userId;
+}
 
 // ============================================================
 // QUERIES
@@ -36,7 +53,7 @@ export const list = query({
 		closerUserId: v.optional(v.id("users")),
 	},
 	handler: async (ctx, { status, closerUserId }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		let rows: Doc<"leads">[];
 		if (status) {
 			rows = await ctx.db
@@ -51,6 +68,7 @@ export const list = query({
 		} else {
 			rows = await ctx.db.query("leads").collect();
 		}
+		if (!seeAll) rows = rows.filter((l) => ownsLead(l, userId));
 		return rows;
 	},
 });
@@ -72,7 +90,21 @@ export const listPaginated = query({
 		),
 	},
 	handler: async (ctx, { paginationOpts, status }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
+		// Non-admin : cloisonné à ses leads via l'index closerUserId.
+		// NB : un lead où l'utilisateur est SETTER seulement (pas closer)
+		// n'apparaît pas dans cette vue paginée — limitation connue (erreur du
+		// côté sûr : montrer moins, jamais fuiter).
+		if (!seeAll) {
+			const base = ctx.db
+				.query("leads")
+				.withIndex("by_closerUserId", (q) => q.eq("closerUserId", userId));
+			return status
+				? await base
+						.filter((q) => q.eq(q.field("status"), status))
+						.paginate(paginationOpts)
+				: await base.paginate(paginationOpts);
+		}
 		if (status) {
 			const results = await ctx.db
 				.query("leads")
@@ -88,10 +120,11 @@ export const listPaginated = query({
 export const searchTopN = query({
 	args: { q: v.string(), limit: v.optional(v.number()) },
 	handler: async (ctx, { q, limit }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		const all = await ctx.db.query("leads").collect();
 		const needle = q.toLowerCase();
 		const matches = all.filter((l) => {
+			if (!seeAll && !ownsLead(l, userId)) return false;
 			const name = `${l.firstName ?? ""} ${l.lastName ?? ""}`.toLowerCase();
 			return (
 				name.includes(needle) ||
@@ -106,8 +139,11 @@ export const searchTopN = query({
 export const getById = query({
 	args: { id: v.id("leads") },
 	handler: async (ctx, { id }) => {
-		await requireAuth(ctx);
-		return await ctx.db.get(id);
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const lead = await ctx.db.get(id);
+		if (!lead) return null;
+		if (!seeAll && !ownsLead(lead, userId)) return null;
+		return lead;
 	},
 });
 
@@ -115,8 +151,10 @@ export const getById = query({
 export const countByStatus = query({
 	args: {},
 	handler: async (ctx) => {
-		await requireAuth(ctx);
-		const all = await ctx.db.query("leads").collect();
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const all = (await ctx.db.query("leads").collect()).filter(
+			(l) => seeAll || ownsLead(l, userId),
+		);
 		const now = Date.now();
 		const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 		const startOfMonth = new Date();
@@ -195,9 +233,11 @@ export const update = mutation({
 		montantContracte: v.optional(v.number()),
 	},
 	handler: async (ctx, { id, ...patch }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		const lead = await ctx.db.get(id);
 		if (!lead) throw new Error("Lead introuvable");
+		if (!seeAll && !ownsLead(lead, userId))
+			throw new Error("Accès refusé à ce lead");
 
 		const phonePatch =
 			patch.phone !== undefined
@@ -232,9 +272,11 @@ export const addNote = mutation({
 		body: v.string(),
 	},
 	handler: async (ctx, { leadId, body }) => {
-		const userId = await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		const lead = await ctx.db.get(leadId);
 		if (!lead) throw new Error("Lead introuvable");
+		if (!seeAll && !ownsLead(lead, userId))
+			throw new Error("Accès refusé à ce lead");
 
 		const now = Date.now();
 		const noteId = await ctx.db.insert("leadNotes", {
@@ -282,9 +324,11 @@ export const addFollowUp = mutation({
 		note: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const userId = await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		const lead = await ctx.db.get(args.leadId);
 		if (!lead) throw new Error("Lead introuvable");
+		if (!seeAll && !ownsLead(lead, userId))
+			throw new Error("Accès refusé à ce lead");
 
 		if (args.dueAt < Date.now() - 60_000) {
 			throw new Error("La date de relance doit être dans le futur");
@@ -311,9 +355,12 @@ export const completeFollowUp = mutation({
 		note: v.optional(v.string()),
 	},
 	handler: async (ctx, { followUpId, note }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		const fu = await ctx.db.get(followUpId);
 		if (!fu) throw new Error("Follow-up introuvable");
+		const fuLead = await ctx.db.get(fu.leadId);
+		if (fuLead && !seeAll && !ownsLead(fuLead, userId))
+			throw new Error("Accès refusé à ce lead");
 		await ctx.db.patch(followUpId, {
 			status: "done",
 			...(note !== undefined ? { note } : {}),
@@ -325,9 +372,12 @@ export const completeFollowUp = mutation({
 export const cancelFollowUp = mutation({
 	args: { followUpId: v.id("leadFollowUps") },
 	handler: async (ctx, { followUpId }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
 		const fu = await ctx.db.get(followUpId);
 		if (!fu) throw new Error("Follow-up introuvable");
+		const fuLead = await ctx.db.get(fu.leadId);
+		if (fuLead && !seeAll && !ownsLead(fuLead, userId))
+			throw new Error("Accès refusé à ce lead");
 		await ctx.db.patch(followUpId, { status: "cancelled" });
 	},
 });
@@ -340,7 +390,9 @@ export const cancelFollowUp = mutation({
 export const activityStream = query({
 	args: { leadId: v.id("leads") },
 	handler: async (ctx, { leadId }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const lead = await ctx.db.get(leadId);
+		if (!lead || (!seeAll && !ownsLead(lead, userId))) return [];
 
 		// Booking activity logs for this lead
 		const activityLogs = await ctx.db
@@ -427,7 +479,9 @@ export const activityStream = query({
 export const listBookingsByLead = query({
 	args: { leadId: v.id("leads") },
 	handler: async (ctx, { leadId }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const lead = await ctx.db.get(leadId);
+		if (!lead || (!seeAll && !ownsLead(lead, userId))) return [];
 		const bookings = await ctx.db
 			.query("bookings")
 			.withIndex("by_leadId_startTime", (q) => q.eq("leadId", leadId))
@@ -441,7 +495,9 @@ export const listBookingsByLead = query({
 export const listNotesByLead = query({
 	args: { leadId: v.id("leads") },
 	handler: async (ctx, { leadId }) => {
-		await requireAuth(ctx);
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const lead = await ctx.db.get(leadId);
+		if (!lead || (!seeAll && !ownsLead(lead, userId))) return [];
 		const notes = await ctx.db
 			.query("leadNotes")
 			.withIndex("by_lead_date", (q) => q.eq("leadId", leadId))

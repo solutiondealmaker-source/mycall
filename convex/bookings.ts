@@ -1909,7 +1909,17 @@ export const listLossReasons = query({
 export const listByLead = query({
 	args: { leadId: v.id("leads") },
 	handler: async (ctx, { leadId }) => {
-		await getAuthenticatedUser(ctx);
+		// Cloisonnement CRM : non-admin ne voit les bookings que de ses leads.
+		const user = await getAuthenticatedUser(ctx);
+		const lead = await ctx.db.get(leadId);
+		if (!lead) return [];
+		if (
+			!isAdminUser(user) &&
+			lead.closerUserId !== user._id &&
+			lead.setterUserId !== user._id
+		) {
+			return [];
+		}
 		return await ctx.db
 			.query("bookings")
 			.withIndex("by_leadId_startTime", (q) => q.eq("leadId", leadId))
