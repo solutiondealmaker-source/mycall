@@ -325,6 +325,33 @@ async function main() {
 		info("Skipped Resend.");
 	}
 
+	// ─── 6. Signup allowlist (admin du client) ───────────────
+	header("Admin / allowlist d'inscription");
+	info("Seuls les emails de l'allowlist peuvent créer un compte. Le premier à");
+	info("s'inscrire devient admin (owner) de cette instance.");
+	const adminEmail = await ask(
+		"Email admin (owner de cette instance) — devient admin au 1er signup",
+	);
+	if (adminEmail) {
+		const existing = runConvex(["env", "get", "SIGNUP_ALLOWED_EMAILS"]);
+		const current =
+			existing.ok && existing.stdout.trim() ? existing.stdout.trim() : "";
+		const merged = Array.from(
+			new Set(
+				`${current},${adminEmail}`
+					.split(",")
+					.map((e) => e.trim().toLowerCase())
+					.filter(Boolean),
+			),
+		).join(",");
+		const r = runConvex(["env", "set", "SIGNUP_ALLOWED_EMAILS", merged]);
+		if (!r.ok) warn("Could not set SIGNUP_ALLOWED_EMAILS on Convex.");
+		else ok(`Allowlist inscription : ${merged}`);
+	} else {
+		warn("Aucun email admin → SIGNUP_ALLOWED_EMAILS vide = inscription FERMÉE");
+		warn("(fail-closed). À définir avant de livrer l'instance.");
+	}
+
 	// ─── Write .env.local ────────────────────────────────────
 	writeFileSync(ENV_PATH, serializeEnv(envNow), "utf-8");
 	ok(".env.local written.");
