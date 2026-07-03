@@ -170,7 +170,7 @@ export function Sidebar() {
 					{collapsed ? (
 						<Image
 							src="/logo-icon.png"
-							alt="iClone"
+							alt="Mycall"
 							width={300}
 							height={300}
 							priority
@@ -179,7 +179,7 @@ export function Sidebar() {
 					) : (
 						<Image
 							src="/logo.png"
-							alt="iClone"
+							alt="Mycall"
 							width={800}
 							height={300}
 							priority

@@ -75,7 +75,7 @@ export default function LoginPage() {
 				>
 					<Image
 						src="/logo-icon.png"
-						alt="iClone"
+						alt="Mycall"
 						width={64}
 						height={64}
 						priority
@@ -85,7 +85,7 @@ export default function LoginPage() {
 						className="font-display text-2xl font-semibold tracking-tight text-[var(--ink)]"
 						style={{ fontFamily: "var(--font-display)" }}
 					>
-						iClone
+						Mycall
 					</span>
 					<p className="text-sm text-[var(--ink-muted)]">Se connecter</p>
 				</motion.div>
@@ -154,7 +154,7 @@ export default function LoginPage() {
 				variants={itemVariants}
 				className="mt-6 text-center text-xs text-[var(--ink-ghost)]"
 			>
-				Powered by iClone
+				Powered by Mycall
 			</motion.p>
 		</motion.div>
 	);

@@ -50,7 +50,7 @@
   --color-chart-4:  var(--chart-4);
   --color-chart-5:  var(--chart-5);
 
-  /* ── Tokens Endosia / iClone ── */
+  /* ── Tokens Endosia / Mycall ── */
   --color-brand:          var(--brand);
   --color-brand-bright:   var(--brand-bright);
   --color-brand-light:    var(--brand-light);
@@ -100,12 +100,12 @@
   --surface-raised: #F6F7FB;
   --surface-muted:  #EEF0F6;
 
-  /* ── Brand ── */
-  --brand:       #2563EB;
-  --brand-bright: #3B82F6;
-  --brand-light: #60A5FA;
-  --brand-soft:  rgba(37, 99, 235, 0.08);
-  --brand-glow:  rgba(37, 99, 235, 0.18);
+  /* ── Brand (Mycall navy) ── */
+  --brand:       #192A3B;
+  --brand-bright: #28435E;
+  --brand-light: #3C5F82;
+  --brand-soft:  rgba(25, 42, 59, 0.08);
+  --brand-glow:  rgba(25, 42, 59, 0.18);
 
   /* ── Ink ── */
   --ink:        #0F172A;
@@ -130,11 +130,11 @@
   --shadow-card:  0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
   --shadow-float: 0 8px 32px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.06);
   --shadow-pop:   0 16px 48px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.08);
-  --shadow-brand: 0 4px 20px rgba(37, 99, 235, 0.22);
+  --shadow-brand: 0 4px 20px rgba(25, 42, 59, 0.22);
 
   /* ── Gradients ── */
-  --grad-brand:      linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
-  --grad-brand-soft: linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(96, 165, 250, 0.03) 100%);
+  --grad-brand:      linear-gradient(135deg, #192A3B 0%, #28435E 100%);
+  --grad-brand-soft: linear-gradient(135deg, rgba(25, 42, 59, 0.06) 0%, rgba(60, 95, 130, 0.03) 100%);
   --grad-cream:      linear-gradient(180deg, #FAFBFE 0%, #F6F7FB 100%);
   --grad-success:    linear-gradient(135deg, rgba(16, 185, 129, 0.10) 0%, rgba(16, 185, 129, 0.04) 100%);
 
@@ -162,8 +162,8 @@
   --ring:                   var(--brand);
 
   /* ── Charts → brand palette ── */
-  --chart-1: #2563EB;
-  --chart-2: #60A5FA;
+  --chart-1: #192A3B;
+  --chart-2: #3C5F82;
   --chart-3: #10B981;
   --chart-4: #F59E0B;
   --chart-5: #94A3B8;
@@ -190,12 +190,12 @@
   --surface-raised: #1A2133;
   --surface-muted:  #1E293B;
 
-  /* ── Brand — légèrement plus saturé en dark ── */
-  --brand:       #3B82F6;
-  --brand-bright: #60A5FA;
-  --brand-light: #93C5FD;
-  --brand-soft:  rgba(59, 130, 246, 0.12);
-  --brand-glow:  rgba(59, 130, 246, 0.25);
+  /* ── Brand (Mycall navy — éclairci pour rester lisible en dark) ── */
+  --brand:       #5B7FA6;
+  --brand-bright: #7098BF;
+  --brand-light: #93B4D6;
+  --brand-soft:  rgba(91, 127, 166, 0.14);
+  --brand-glow:  rgba(91, 127, 166, 0.26);
 
   /* ── Ink inversé ── */
   --ink:        #F8FAFC;
@@ -220,11 +220,11 @@
   --shadow-card:  0 1px 2px rgba(0, 0, 0, 0.20), 0 4px 16px rgba(0, 0, 0, 0.16);
   --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.32), 0 1px 4px rgba(0, 0, 0, 0.20);
   --shadow-pop:   0 16px 48px rgba(0, 0, 0, 0.40), 0 4px 8px rgba(0, 0, 0, 0.24);
-  --shadow-brand: 0 4px 20px rgba(59, 130, 246, 0.35);
+  --shadow-brand: 0 4px 20px rgba(91, 127, 166, 0.35);
 
   /* ── Gradients dark ── */
-  --grad-brand:      linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
-  --grad-brand-soft: linear-gradient(135deg, rgba(59, 130, 246, 0.10) 0%, rgba(96, 165, 250, 0.05) 100%);
+  --grad-brand:      linear-gradient(135deg, #5B7FA6 0%, #7098BF 100%);
+  --grad-brand-soft: linear-gradient(135deg, rgba(91, 127, 166, 0.10) 0%, rgba(147, 180, 214, 0.05) 100%);
   --grad-cream:      linear-gradient(180deg, #0B0F1A 0%, #111827 100%);
   --grad-success:    linear-gradient(135deg, rgba(52, 211, 153, 0.12) 0%, rgba(52, 211, 153, 0.05) 100%);
 
@@ -245,8 +245,8 @@
   --ring:                   var(--brand);
 
   /* ── Charts dark ── */
-  --chart-1: #60A5FA;
-  --chart-2: #93C5FD;
+  --chart-1: #5B7FA6;
+  --chart-2: #93B4D6;
   --chart-3: #34D399;
   --chart-4: #FBBF24;
   --chart-5: #64748B;

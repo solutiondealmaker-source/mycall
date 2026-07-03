@@ -27,7 +27,7 @@ export default function BookLayout({ children }: { children: ReactNode }) {
 						rel="noopener noreferrer"
 						className="font-[family-name:var(--font-display)] font-semibold text-[var(--ink-ghost)] hover:text-[var(--ink-muted)] transition-colors"
 					>
-						iClone
+						Mycall
 					</a>
 				</p>
 			</footer>

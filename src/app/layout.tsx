@@ -18,7 +18,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-	title: "iClone — Booking & CRM",
+	title: "Mycall — Booking & CRM",
 	description: "Plateforme de booking et CRM pour closers.",
 };
 

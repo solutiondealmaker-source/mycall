@@ -34,7 +34,7 @@ export async function generateMetadata({
 
 	if (!event) {
 		return {
-			title: "Réservation — iClone",
+			title: "Réservation — Mycall",
 			description: "Prenez rendez-vous en ligne.",
 		};
 	}
