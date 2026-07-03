@@ -79,7 +79,7 @@ export default function LoginPage() {
 						width={64}
 						height={64}
 						priority
-						className="h-14 w-14"
+						className="h-14 w-14 object-contain"
 					/>
 					<span
 						className="font-display text-2xl font-semibold tracking-tight text-[var(--ink)]"

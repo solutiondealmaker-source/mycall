@@ -174,7 +174,7 @@ export function Sidebar() {
 							width={300}
 							height={300}
 							priority
-							className="h-24 w-24"
+							className="h-24 w-24 object-contain"
 						/>
 					) : (
 						<Image
