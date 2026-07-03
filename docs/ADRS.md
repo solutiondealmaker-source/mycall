@@ -219,3 +219,24 @@ users: defineTable({
 - The `email` index name is `"email"` (not `"by_email"`) to match the naming convention required by `@convex-dev/auth`. Deviating from this name breaks auth lookups.
 - When `@convex-dev/auth` adds new fields to `authTables.users` in a future version, the override must be updated manually.
 - `isAdmin` and `role` are independent: `isAdmin` gates UI features, `role` drives attribution and display logic.
+
+---
+
+## ADR-009: M2 — public write abuse is an accepted risk (no captcha)
+
+**Date:** 2026-07-03
+**Status:** accepted
+
+### Context
+
+The public unauthenticated mutations `capturePartialLead` and `trackPageView` can be called with rotating session ids to create junk `leads`/`partialLeads` rows. Convex query/mutation functions do not receive the client IP, so per-IP rate limiting is not available at the mutation layer. Turnstile/captcha is a poor fit here: the "silent partial capture" fires on field blur *before* any submit, so a captcha cannot gate it without breaking the core feature — and it adds conversion friction on a sales page.
+
+### Decision
+
+Accept the residual risk for V1. Bound the blast radius by capping public input field lengths (done — `convex/partialLeads.ts`) and rely on the fact that the valuable path (booking) is already protected (60s seat hold + fail-closed Google sync). Monitor Convex table growth and function-call volume.
+
+### Consequences
+
+- Junk partial leads remain possible; they are small (capped) and filterable/deletable.
+- Escalation path if real abuse appears: move `capturePartialLead` behind a Convex `httpAction` (which exposes request headers) and rate-limit by `X-Forwarded-For` from the reverse proxy — accepting NAT false-positive caveats.
+- No captcha is added.
