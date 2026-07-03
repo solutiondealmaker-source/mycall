@@ -378,8 +378,8 @@
   height: 800px;
   background: radial-gradient(
     circle,
-    rgba(37, 99, 235, 0.14) 0%,
-    rgba(96, 165, 250, 0.06) 40%,
+    rgba(25, 42, 59, 0.14) 0%,
+    rgba(60, 95, 130, 0.06) 40%,
     transparent 70%
   );
   top: -25%;
@@ -389,8 +389,8 @@
 .dark .mesh-blob-a {
   background: radial-gradient(
     circle,
-    rgba(37, 99, 235, 0.28) 0%,
-    rgba(96, 165, 250, 0.10) 40%,
+    rgba(25, 42, 59, 0.28) 0%,
+    rgba(60, 95, 130, 0.10) 40%,
     transparent 70%
   );
 }
@@ -400,8 +400,8 @@
   height: 650px;
   background: radial-gradient(
     circle,
-    rgba(96, 165, 250, 0.10) 0%,
-    rgba(37, 99, 235, 0.04) 40%,
+    rgba(60, 95, 130, 0.10) 0%,
+    rgba(25, 42, 59, 0.04) 40%,
     transparent 70%
   );
   bottom: -20%;
@@ -411,8 +411,8 @@
 .dark .mesh-blob-b {
   background: radial-gradient(
     circle,
-    rgba(96, 165, 250, 0.18) 0%,
-    rgba(37, 99, 235, 0.06) 40%,
+    rgba(60, 95, 130, 0.18) 0%,
+    rgba(25, 42, 59, 0.06) 40%,
     transparent 70%
   );
 }
@@ -422,8 +422,8 @@
   height: 400px;
   background: radial-gradient(
     circle,
-    rgba(37, 99, 235, 0.08) 0%,
-    rgba(96, 165, 250, 0.03) 50%,
+    rgba(25, 42, 59, 0.08) 0%,
+    rgba(60, 95, 130, 0.03) 50%,
     transparent 70%
   );
   top: 30%;
@@ -433,7 +433,7 @@
 .dark .mesh-blob-c {
   background: radial-gradient(
     circle,
-    rgba(59, 130, 246, 0.15) 0%,
+    rgba(91, 127, 166, 0.15) 0%,
     transparent 70%
   );
 }
@@ -451,8 +451,8 @@
   background: linear-gradient(
     90deg,
     transparent 10%,
-    #2563EB 40%,
-    #60A5FA 60%,
+    #192A3B 40%,
+    #3C5F82 60%,
     transparent 90%
   );
   opacity: 0.35;
@@ -594,12 +594,12 @@
 
   /* Selection */
   ::selection {
-    background-color: rgba(37, 99, 235, 0.15);
+    background-color: rgba(25, 42, 59, 0.15);
     color: var(--ink-soft);
   }
 
   .dark ::selection {
-    background-color: rgba(59, 130, 246, 0.25);
+    background-color: rgba(91, 127, 166, 0.25);
     color: var(--ink);
   }
 
