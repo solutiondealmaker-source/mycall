@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as bookings from "../bookings.js";
@@ -46,6 +47,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   analytics: typeof analytics;
   auth: typeof auth;
   bookings: typeof bookings;

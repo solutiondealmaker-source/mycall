@@ -49,3 +49,6 @@ next-env.d.ts
 # local AI tooling caches
 .serena/
 .claude/
+
+.vercel
+.env*

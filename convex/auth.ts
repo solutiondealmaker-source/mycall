@@ -11,6 +11,7 @@
 
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
 // Emails autorisés à créer un compte. Lu à chaque tentative d'inscription.
 function getSignupAllowlist(): Set<string> {
@@ -25,7 +26,7 @@ function getSignupAllowlist(): Set<string> {
 // Password only. Google OAuth retiré sur demande user (Phase 9 : flow Google
 // Calendar séparé sur convex.site, sans toucher au sign-in).
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-	providers: [Password],
+	providers: [Password({ reset: ResendOTPPasswordReset })],
 	callbacks: {
 		async createOrUpdateUser(ctx, args) {
 			// Connexion d'un compte existant — jamais gatée.

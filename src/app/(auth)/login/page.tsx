@@ -136,9 +136,18 @@ export default function LoginPage() {
 					</Button>
 				</motion.form>
 
+				<motion.p variants={itemVariants} className="mt-4 text-center">
+					<a
+						href="/forgot"
+						className="text-sm text-[var(--ink-muted)] hover:text-[var(--brand)] transition-colors"
+					>
+						Mot de passe oublié ?
+					</a>
+				</motion.p>
+
 				<motion.p
 					variants={itemVariants}
-					className="mt-5 text-center text-sm text-[var(--ink-muted)]"
+					className="mt-2 text-center text-sm text-[var(--ink-muted)]"
 				>
 					Pas encore de compte ?{" "}
 					<a
