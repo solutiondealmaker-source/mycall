@@ -1,6 +1,9 @@
 "use node";
 
-import { createAccount } from "@convex-dev/auth/server";
+import {
+	createAccount,
+	modifyAccountCredentials,
+} from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 
@@ -21,5 +24,19 @@ export const createPasswordAccount = internalAction({
 			shouldLinkViaEmail: true,
 		});
 		return { ok: true, userId: result.user._id };
+	},
+});
+
+// Reset the password of an EXISTING account — keeps the user row + admin role.
+// Run: bunx convex run migrationsNode:resetPassword '{"email":"x","password":"y"}'
+export const resetPassword = internalAction({
+	args: { email: v.string(), password: v.string() },
+	handler: async (ctx, args) => {
+		const email = args.email.trim().toLowerCase();
+		await modifyAccountCredentials(ctx, {
+			provider: "password",
+			account: { id: email, secret: args.password },
+		});
+		return { ok: true };
 	},
 });
