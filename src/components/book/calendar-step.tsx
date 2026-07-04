@@ -393,7 +393,7 @@ export function CalendarStep({
 						key={`${viewYear}-${viewMonth}`}
 						initial="hidden"
 						animate="show"
-						variants={{ show: { transition: { staggerChildren: 0.012 } } }}
+						variants={{ show: { transition: { staggerChildren: 0.02 } } }}
 						className="grid grid-cols-7 gap-1 mb-6"
 					>
 						{Array.from({ length: firstDow }).map((_, i) => (
@@ -501,7 +501,7 @@ export function CalendarStep({
 										initial="hidden"
 										animate="show"
 										variants={{
-											show: { transition: { staggerChildren: 0.04 } },
+											show: { transition: { staggerChildren: 0.02 } },
 										}}
 										className="grid grid-cols-2 gap-2"
 									>

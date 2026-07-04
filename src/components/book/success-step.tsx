@@ -15,7 +15,7 @@ interface SuccessStepProps {
 const containerVariants: Variants = {
 	hidden: {},
 	show: {
-		transition: { staggerChildren: 0.08 },
+		transition: { staggerChildren: 0.02 },
 	},
 };
 
@@ -24,7 +24,7 @@ const itemVariants: Variants = {
 	show: {
 		opacity: 1,
 		y: 0,
-		transition: { duration: 0.4, ease: "easeOut" },
+		transition: { duration: 0.15, ease: "easeOut" },
 	},
 };
 
@@ -71,7 +71,7 @@ export function SuccessStep({ event, result }: SuccessStepProps) {
 			<motion.div
 				initial={{ scale: 0, opacity: 0 }}
 				animate={{ scale: 1, opacity: 1 }}
-				transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1], delay: 0.1 }}
+				transition={{ duration: 0.15, ease: [0.34, 1.56, 0.64, 1], delay: 0.1 }}
 				className="w-16 h-16 rounded-full bg-[var(--success-soft)] flex items-center justify-center"
 			>
 				<CalendarCheck2 className="w-8 h-8 text-[var(--success)]" />

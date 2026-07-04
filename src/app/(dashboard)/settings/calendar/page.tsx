@@ -139,7 +139,7 @@ export default function CalendarSettingsPage() {
 				<motion.div
 					initial={{ opacity: 0, y: 8 }}
 					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.3 }}
+					transition={{ duration: 0.15 }}
 					className="card-premium flex flex-col items-center justify-center py-12 gap-4 text-center"
 				>
 					<div className="w-12 h-12 rounded-full bg-[var(--surface-muted)] flex items-center justify-center">

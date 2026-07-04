@@ -43,7 +43,7 @@ const rowVariants: Variants = {
 	visible: (i: number) => ({
 		opacity: 1,
 		y: 0,
-		transition: { duration: 0.3, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] },
+		transition: { duration: 0.15, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] },
 	}),
 };
 
@@ -361,7 +361,7 @@ function EmptyState({
 		<motion.div
 			initial={{ opacity: 0, y: 12 }}
 			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+			transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 			className="flex flex-col items-center justify-center py-24 gap-5"
 		>
 			{/* Mesh blob decoration */}

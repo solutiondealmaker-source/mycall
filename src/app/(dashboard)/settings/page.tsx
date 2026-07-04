@@ -68,7 +68,7 @@ const SETTINGS_CARDS = [
 const containerVariants: Variants = {
 	hidden: {},
 	visible: {
-		transition: { staggerChildren: 0.06 },
+		transition: { staggerChildren: 0.02 },
 	},
 };
 
@@ -77,7 +77,7 @@ const cardVariants: Variants = {
 	visible: {
 		opacity: 1,
 		y: 0,
-		transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+		transition: { duration: 0.15, ease: [0.16, 1, 0.3, 1] },
 	},
 };
 

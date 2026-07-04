@@ -152,7 +152,7 @@ export default function TeamPage() {
 			<motion.div
 				initial={{ opacity: 0, y: 8 }}
 				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.3 }}
+				transition={{ duration: 0.15 }}
 				className="card-premium p-4 mb-6 flex items-center gap-3"
 			>
 				<Mail className="w-4 h-4 text-[var(--brand)] shrink-0" />
@@ -169,7 +169,7 @@ export default function TeamPage() {
 			<motion.div
 				initial={{ opacity: 0, y: 12 }}
 				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+				transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 				className="card-premium overflow-hidden"
 			>
 				{/* Header */}

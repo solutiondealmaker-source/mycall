@@ -104,7 +104,7 @@ export function SetupChecklist() {
 		<motion.section
 			initial={{ opacity: 0, y: 8 }}
 			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+			transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 			className={cn(
 				"mb-8 rounded-[var(--radius-lg)] border border-[var(--border)]",
 				"bg-[var(--surface)] shadow-[var(--shadow-card)] overflow-hidden",
@@ -133,7 +133,7 @@ export function SetupChecklist() {
 							<motion.div
 								initial={{ width: 0 }}
 								animate={{ width: `${pct}%` }}
-								transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+								transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 								className="h-full bg-[var(--brand)]"
 							/>
 						</div>

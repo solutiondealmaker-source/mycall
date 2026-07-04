@@ -280,7 +280,7 @@ export default function AvailabilityPage() {
 				<motion.div
 					initial={{ opacity: 0, y: 12 }}
 					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+					transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 					className="space-y-4"
 				>
 					{/* Quick actions */}
@@ -367,7 +367,7 @@ export default function AvailabilityPage() {
 				<motion.div
 					initial={{ opacity: 0, y: 12 }}
 					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+					transition={{ duration: 0.15, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
 				>
 					<div className="card-premium p-5 sticky top-8">
 						<h3 className="text-sm font-semibold text-[var(--ink)] font-[family-name:var(--font-display)] mb-4">

@@ -74,7 +74,7 @@ export function FunnelWidget({ eventIds, startMs, endMs }: FunnelWidgetProps) {
 									initial={{ width: 0 }}
 									animate={{ width: `${pct}%` }}
 									transition={{
-										duration: 0.7,
+										duration: 0.15,
 										delay: i * 0.1,
 										ease: [0.25, 0.46, 0.45, 0.94],
 									}}

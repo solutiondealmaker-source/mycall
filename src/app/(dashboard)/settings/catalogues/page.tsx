@@ -217,7 +217,7 @@ export default function CataloguesPage() {
 				<motion.div
 					initial={{ opacity: 0, y: 12 }}
 					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+					transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 				>
 					<div className="card-premium p-5">
 						<div className="flex items-center justify-between mb-4">
@@ -338,7 +338,7 @@ export default function CataloguesPage() {
 				<motion.div
 					initial={{ opacity: 0, y: 12 }}
 					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
+					transition={{ duration: 0.15, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
 				>
 					<div className="card-premium p-5">
 						<h2 className="text-sm font-semibold text-[var(--ink)] font-[family-name:var(--font-display)] tracking-[-0.01em] mb-4">

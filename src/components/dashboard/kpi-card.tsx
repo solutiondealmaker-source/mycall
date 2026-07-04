@@ -84,7 +84,7 @@ export const kpiGridVariants = {
 	hidden: {},
 	visible: {
 		transition: {
-			staggerChildren: 0.05,
+			staggerChildren: 0.02,
 		},
 	},
 };
@@ -114,7 +114,7 @@ export function AnimatedKpiItem({ children }: { children: React.ReactNode }) {
 	return (
 		<motion.div
 			variants={kpiCardVariants}
-			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+			transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 		>
 			{children}
 		</motion.div>

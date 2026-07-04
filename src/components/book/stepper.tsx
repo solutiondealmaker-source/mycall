@@ -39,7 +39,7 @@ export function BookingStepper({ current }: StepperProps) {
 											? "var(--brand)"
 											: "var(--surface-muted)",
 								}}
-								transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+								transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 								className="w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-sm shrink-0"
 							>
 								{isDone && (
@@ -66,7 +66,7 @@ export function BookingStepper({ current }: StepperProps) {
 									animate={{ scaleX: current > 1 ? 1 : 0 }}
 									initial={{ scaleX: 0 }}
 									style={{ originX: 0 }}
-									transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+									transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 									className="absolute inset-0 bg-[var(--brand)]"
 								/>
 							</div>

@@ -38,7 +38,7 @@ export function DisqualificationOverlay({
 			initial={{ opacity: 0, scale: 0.95 }}
 			animate={{ opacity: 1, scale: 1 }}
 			exit={{ opacity: 0, scale: 0.95 }}
-			transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+			transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 			className="pointer-events-auto max-w-[360px] w-full rounded-2xl border border-[var(--destructive)]/30 bg-[var(--surface)] px-6 py-6 text-center shadow-[var(--shadow-pop)]"
 			role="alertdialog"
 			aria-modal="true"

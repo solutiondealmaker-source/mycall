@@ -75,7 +75,7 @@ export function BookFlow({ event, questions, slug }: BookFlowProps) {
 			ref={cardRef}
 			initial={{ opacity: 0, y: 12 }}
 			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+			transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 			className={cn(
 				"bg-[var(--surface)] rounded-[var(--radius-xl)]",
 				"border border-[var(--border)]",
@@ -138,7 +138,7 @@ export function BookFlow({ event, questions, slug }: BookFlowProps) {
 						initial={{ opacity: 0, scale: 0.97 }}
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0 }}
-						transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+						transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 					>
 						<SuccessStep event={event} result={result} />
 					</motion.div>
