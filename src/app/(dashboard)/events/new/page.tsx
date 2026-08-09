@@ -29,9 +29,6 @@ function nameToSlug(name: string): string {
 /**
  * Page de création d'un nouvel événement.
  * Formulaire minimaliste : nom + slug → redirige vers /events/[id]/edit
- *
- * TODO API: useMutation(api.events.create) pour créer l'event
- * TODO API: useQuery(api.events.getBySlug, { slug }) pour valider unicité du slug
  */
 export default function NewEventPage() {
 	const router = useRouter();

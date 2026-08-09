@@ -203,6 +203,22 @@ export const listUsers = query({
 	},
 });
 
+// Leads les plus récemment actifs — widget dashboard "Leads chauds". Cloisonné.
+export const listRecent = query({
+	args: { limit: v.optional(v.number()) },
+	handler: async (ctx, { limit }) => {
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const all = await ctx.db.query("leads").collect();
+		const scoped = seeAll ? all : all.filter((l) => ownsLead(l, userId));
+		scoped.sort(
+			(a, b) =>
+				(b.lastInteractionAt ?? b._creationTime) -
+				(a.lastInteractionAt ?? a._creationTime),
+		);
+		return scoped.slice(0, limit ?? 5);
+	},
+});
+
 // ============================================================
 // MUTATIONS — lead
 // ============================================================

@@ -1893,6 +1893,34 @@ export const trackPageView = mutation({
 	},
 });
 
+// Prochains RDV confirmés — widget dashboard "Bookings récents".
+// Cloisonné : admin voit tout, sinon uniquement ses propres RDV (hostId).
+export const listUpcoming = query({
+	args: { limit: v.optional(v.number()) },
+	handler: async (ctx, { limit }) => {
+		const user = await getAuthenticatedUser(ctx);
+		const now = Date.now();
+		const n = limit ?? 5;
+		if (isAdminUser(user)) {
+			return await ctx.db
+				.query("bookings")
+				.withIndex("by_status_startTime", (q) =>
+					q.eq("status", "confirmed").gte("startTime", now),
+				)
+				.order("asc")
+				.take(n);
+		}
+		return await ctx.db
+			.query("bookings")
+			.withIndex("by_hostId_startTime", (q) =>
+				q.eq("hostId", user._id).gte("startTime", now),
+			)
+			.order("asc")
+			.filter((q) => q.eq(q.field("status"), "confirmed"))
+			.take(n);
+	},
+});
+
 // List active loss reasons — used by outcome modal
 export const listLossReasons = query({
 	args: {},

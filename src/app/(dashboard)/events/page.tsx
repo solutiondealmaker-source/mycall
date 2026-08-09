@@ -51,7 +51,6 @@ const rowVariants: Variants = {
 
 /**
  * Page liste des événements.
- * TODO API: useQuery(api.events.listAll) + useMutation(api.events.toggleActive) + useMutation(api.events.archive)
  */
 export default function EventsPage() {
 	const rawEvents = useQuery(api.events.list, {}) as EventDoc[] | undefined;

@@ -87,8 +87,8 @@ function MiniCalendarPreview() {
 		"Décembre",
 	];
 
-	// Fake available days — just for visual preview
-	const fakeAvailable = new Set([3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26]);
+	// Décoratif uniquement (aria-hidden) — aucune fausse disponibilité affichée.
+	const fakeAvailable = new Set<number>();
 
 	return (
 		<div className="select-none pointer-events-none" aria-hidden="true">
