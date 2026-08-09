@@ -242,6 +242,7 @@ function QuestionField({
 										viewBox="0 0 12 12"
 										className="w-2.5 h-2.5 text-white"
 										fill="none"
+										aria-hidden="true"
 									>
 										<path
 											d="M2 6l3 3 5-5"
@@ -574,10 +575,10 @@ export function FormStep({
 
 							{secondaryQuestions.map((q) => (
 								<div key={q._id}>
-									<label className={labelClass}>
+									<span className={cn(labelClass, "block")}>
 										{q.label}
 										{q.required && " *"}
-									</label>
+									</span>
 									<QuestionField
 										question={q}
 										value={
