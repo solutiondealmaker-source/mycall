@@ -1,6 +1,8 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { Eye, PhoneCall, TrendingUp, Users } from "lucide-react";
+import { api } from "@/../convex/_generated/api";
 import {
 	AnimatedKpiGrid,
 	AnimatedKpiItem,
@@ -9,67 +11,76 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 
-// ─── Données placeholder ───────────────────────────────────────────────────────
-
-const KPI_DATA = [
-	{
-		label: "Vues page",
-		value: "1 284",
-		icon: Eye,
-		delta: "+8%",
-		deltaPositive: true,
-	},
-	{
-		label: "Contacts capturés",
-		value: "247",
-		icon: Users,
-		delta: "+14%",
-		deltaPositive: true,
-	},
-	{
-		label: "Appels créés",
-		value: "98",
-		icon: PhoneCall,
-		delta: "+5%",
-		deltaPositive: true,
-	},
-	{
-		label: "Taux conversion",
-		value: "38,4%",
-		icon: TrendingUp,
-		delta: "-1.2%",
-		deltaPositive: false,
-	},
-] as const;
-
-// ─── Composant ────────────────────────────────────────────────────────────────
+// Rôles qui voient les stats globales (aligné sur isAdminUser côté serveur).
+const ADMIN_ROLES = new Set(["admin", "ceo", "ops", "head_of_sales"]);
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export default function DashboardPage() {
+	const me = useQuery(api.users.getMyProfile);
+	const isAdmin =
+		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
+
+	const now = Date.now();
+	// getFunnelStats est réservé aux admins → "skip" pour les autres (pas d'erreur).
+	const funnel = useQuery(
+		api.analytics.getFunnelStats,
+		isAdmin ? { startMs: now - 30 * MS_PER_DAY, endMs: now } : "skip",
+	);
+
+	const loading = isAdmin && funnel === undefined;
+	const fmt = (n: number) => n.toLocaleString("fr-FR");
+
+	const kpis = [
+		{
+			label: "Vues page",
+			value: funnel ? fmt(funnel.pageViews) : "—",
+			icon: Eye,
+		},
+		{
+			label: "Contacts capturés",
+			value: funnel ? fmt(funnel.contacts) : "—",
+			icon: Users,
+		},
+		{
+			label: "Appels créés",
+			value: funnel ? fmt(funnel.calls) : "—",
+			icon: PhoneCall,
+		},
+		{
+			label: "Taux conversion",
+			value: funnel ? `${funnel.contactsToCallsPct}%` : "—",
+			icon: TrendingUp,
+		},
+	] as const;
+
 	return (
 		<div className="animate-fade-in">
 			<PageHeader
 				title={<>Bonjour 👋</>}
-				description="Voici un aperçu de ton activité"
+				description="Aperçu de ton activité — 30 derniers jours"
 			/>
 
 			<SetupChecklist />
 
-			{/* KPI Grid animée */}
-			<AnimatedKpiGrid>
-				{KPI_DATA.map((kpi) => (
-					<AnimatedKpiItem key={kpi.label}>
-						<KpiCard
-							label={kpi.label}
-							value={kpi.value}
-							icon={kpi.icon}
-							delta={kpi.delta}
-							deltaPositive={kpi.deltaPositive}
-						/>
-					</AnimatedKpiItem>
-				))}
-			</AnimatedKpiGrid>
+			{isAdmin ? (
+				<AnimatedKpiGrid>
+					{kpis.map((kpi) => (
+						<AnimatedKpiItem key={kpi.label}>
+							<KpiCard
+								label={kpi.label}
+								value={loading ? "…" : kpi.value}
+								icon={kpi.icon}
+							/>
+						</AnimatedKpiItem>
+					))}
+				</AnimatedKpiGrid>
+			) : (
+				<p className="text-sm text-[var(--ink-muted)]">
+					Bienvenue. Retrouve tes leads assignés dans le CRM.
+				</p>
+			)}
 
-			{/* Widgets placeholder */}
+			{/* Widgets à venir */}
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-8">
 				<PlaceholderWidget title="Bookings récents" />
 				<PlaceholderWidget title="Leads chauds" />
