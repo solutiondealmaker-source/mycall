@@ -1034,6 +1034,14 @@ export const createBookingChecked = action({
 			await ctx.runMutation(internal.bookings.finalizeAsNaInternal, {
 				bookingId: reservation.bookingId,
 			});
+			// Notifier MÊME sans Google Calendar (confirmation prospect + notif host).
+			// Avant, le dispatch n'était que dans la branche "Google réussi" → un RDV
+			// "na" ne déclenchait aucun email.
+			await ctx.scheduler.runAfter(
+				0,
+				internal.notifyDispatch.dispatchBookingCreated,
+				{ bookingId: reservation.bookingId },
+			);
 			return {
 				ok: true as const,
 				bookingId: reservation.bookingId,
