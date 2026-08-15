@@ -1097,15 +1097,31 @@ export const createBookingChecked = action({
 		}
 
 		if (!googleInfo) {
-			// Rollback — le lead n'est jamais lié avant finalize
-			await ctx.runMutation(internal.bookings.rollbackBookingInternal, {
+			// Dégradation gracieuse : Google a échoué (token expiré, quota, réseau…).
+			// On réserve quand même en "na" au lieu de faire échouer le RDV, et on
+			// notifie. L'event agenda apparaîtra dès que la connexion Google est saine.
+			console.warn(
+				`[createBookingChecked] Google KO → dégradation na: ${lastError?.slice(0, 200)}`,
+			);
+			await ctx.runMutation(internal.bookings.finalizeAsNaInternal, {
 				bookingId: reservation.bookingId,
-				reason: lastError ?? "google_event_create_failed",
 			});
+			await ctx.scheduler.runAfter(
+				0,
+				internal.notifyDispatch.dispatchBookingCreated,
+				{ bookingId: reservation.bookingId },
+			);
 			return {
-				ok: false as const,
-				error:
-					"La réservation a échoué — le lien Google Meet n'a pas pu être généré. Merci de réessayer dans un instant.",
+				ok: true as const,
+				bookingId: reservation.bookingId,
+				hostId: reservation.hostId,
+				hostName: reservation.hostName,
+				hostEmail: reservation.hostEmail,
+				startTime: reservation.startTime,
+				endTime: reservation.endTime,
+				cancelToken: reservation.cancelToken,
+				rescheduleToken: reservation.rescheduleToken,
+				googleMeetUrl: null as null,
 			};
 		}
 
@@ -2014,21 +2030,17 @@ export const getHostGoogleStatusInternal = internalQuery({
 			.withIndex("by_userId", (q) => q.eq("userId", hostId))
 			.first();
 
-		if (!settings?.writerAccountId || !settings.writerCalendarId) {
-			return { hasActiveGoogle: false };
-		}
-
-		const now = Date.now();
-		const channels = await ctx.db
-			.query("googleCalendarChannels")
-			.withIndex("by_userId", (q) => q.eq("userId", hostId))
-			.collect();
-
-		const writerChannel = channels.find(
-			(c) => c.calendarId === settings.writerCalendarId && c.expirationMs > now,
-		);
-
-		return { hasActiveGoogle: Boolean(writerChannel) };
+		// "Actif" = calendrier writer configuré. On NE requiert PAS de canal push :
+		// le canal (events/watch) sert au sync des busy-blocks entrants et exige un
+		// domaine webhook vérifié chez Google (impossible sur convex.site). Créer
+		// l'event Google d'un booking n'a besoin que du writer + d'un token valide —
+		// si le token est mort, la création échoue et on dégrade en "na" (voir
+		// createBookingChecked).
+		return {
+			hasActiveGoogle: Boolean(
+				settings?.writerAccountId && settings.writerCalendarId,
+			),
+		};
 	},
 });
 
