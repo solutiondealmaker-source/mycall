@@ -1,0 +1,7 @@
+{
+	"_comment": "Copie ce fichier en 'onboard.config.json' (gitignoré) et remplis les valeurs PARTAGÉES entre tous tes clients (un seul client OAuth Google + un seul compte Resend réutilisés). Le script onboard-client.ts les lit pour ne pas te les redemander à chaque client.",
+	"GOOGLE_CLIENT_ID": "xxxx.apps.googleusercontent.com",
+	"GOOGLE_CLIENT_SECRET": "GOCSPX-xxxx",
+	"RESEND_API_KEY": "re_xxxx",
+	"RESEND_FROM_EMAIL": "Mycall <rdv@ton-domaine.com>"
+}

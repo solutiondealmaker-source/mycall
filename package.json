@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"setup": "bun scripts/setup.ts",
+		"onboard": "bun scripts/onboard-client.ts",
 		"dev": "next dev",
 		"convex": "bunx convex dev",
 		"build": "next build",

@@ -50,5 +50,8 @@ next-env.d.ts
 .serena/
 .claude/
 
+# secrets partagés d'onboarding client (créds Google/Resend)
+onboard.config.json
+
 .vercel
 .env*
