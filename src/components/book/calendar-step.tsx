@@ -2,7 +2,6 @@
 
 import { useAction, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import DOMPurify from "isomorphic-dompurify";
 import {
 	ArrowLeft,
 	ChevronLeft,
@@ -16,6 +15,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SafeHtml } from "@/components/ui/safe-html";
 import { cn } from "@/lib/utils";
 import type { BookingResult, BookSessionData } from "@/types/book";
 import type {
@@ -281,7 +281,8 @@ export function CalendarStep({
 						</div>
 					)}
 					{event.description && (
-						<div
+						<SafeHtml
+							html={event.description}
 							className={cn(
 								"text-xs leading-relaxed text-[var(--ink-muted)]",
 								"max-h-[180px] overflow-y-auto",
@@ -290,10 +291,6 @@ export function CalendarStep({
 								"[&_strong]:text-[var(--ink)] [&_strong]:font-semibold",
 								"[&_a]:text-[var(--brand)] [&_a]:underline",
 							)}
-							// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized via DOMPurify
-							dangerouslySetInnerHTML={{
-								__html: DOMPurify.sanitize(event.description),
-							}}
 						/>
 					)}
 				</div>

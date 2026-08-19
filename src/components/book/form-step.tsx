@@ -2,10 +2,10 @@
 
 import { useMutation } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import DOMPurify from "isomorphic-dompurify";
 import { ArrowRight, Calendar, MapPin } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SafeHtml } from "@/components/ui/safe-html";
 import { cn } from "@/lib/utils";
 import type { BookSessionData } from "@/types/book";
 import type { EventDoc, EventQuestion } from "@/types/events";
@@ -429,7 +429,8 @@ export function FormStep({
 						</p>
 					)}
 					{event.description && (
-						<div
+						<SafeHtml
+							html={event.description}
 							className={cn(
 								"mt-4 text-sm leading-relaxed text-[var(--ink-muted)]",
 								"max-h-[200px] overflow-y-auto pr-2",
@@ -438,10 +439,6 @@ export function FormStep({
 								"[&_strong]:text-[var(--ink)] [&_strong]:font-semibold",
 								"[&_a]:text-[var(--brand)] [&_a]:underline",
 							)}
-							// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized via DOMPurify
-							dangerouslySetInnerHTML={{
-								__html: DOMPurify.sanitize(event.description),
-							}}
 						/>
 					)}
 				</div>
