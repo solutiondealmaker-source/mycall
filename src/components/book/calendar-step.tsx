@@ -1,7 +1,7 @@
 "use client";
 
 import { useAction, useQuery } from "convex/react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
 	ArrowLeft,
 	ChevronLeft,
@@ -470,13 +470,12 @@ export function CalendarStep({
 
 					{/* Slots */}
 					{selectedDay !== null && (
-						<AnimatePresence mode="wait">
+						<>
 							<motion.div
 								key={`slots-${selectedDay}`}
 								initial={{ opacity: 0, y: 6 }}
 								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0 }}
-								transition={{ duration: 0.2 }}
+								transition={{ duration: 0.15 }}
 							>
 								{slots === undefined ? (
 									<div className="flex items-center justify-center py-6 gap-2 text-sm text-[var(--ink-ghost)]">
@@ -518,13 +517,12 @@ export function CalendarStep({
 													}}
 													transition={{ duration: 0.15 }}
 												>
-													<AnimatePresence mode="wait">
+													<>
 														{isSelected ? (
 															<motion.div
 																key="expanded"
 																initial={{ opacity: 0 }}
 																animate={{ opacity: 1 }}
-																exit={{ opacity: 0 }}
 																className="col-span-2 flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand)] bg-[var(--brand-soft)] px-3 py-2.5"
 															>
 																<span className="flex-1 text-sm font-semibold text-[var(--brand)]">
@@ -549,7 +547,6 @@ export function CalendarStep({
 																key="pill"
 																initial={{ opacity: 0 }}
 																animate={{ opacity: 1 }}
-																exit={{ opacity: 0 }}
 																type="button"
 																onClick={() => setSelectedSlot(slot.time)}
 																className={cn(
@@ -562,14 +559,14 @@ export function CalendarStep({
 																{label}
 															</motion.button>
 														)}
-													</AnimatePresence>
+													</>
 												</motion.div>
 											);
 										})}
 									</motion.div>
 								)}
 							</motion.div>
-						</AnimatePresence>
+						</>
 					)}
 
 					{selectedDay === null && availableDays !== undefined && (
