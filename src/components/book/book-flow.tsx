@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { BookingResult, BookSessionData } from "@/types/book";
@@ -91,15 +91,19 @@ export function BookFlow({ event, questions, slug }: BookFlowProps) {
 				</div>
 			)}
 
-			{/* Step content */}
-			<AnimatePresence mode="wait">
+			{/* Step content.
+			    Pas d'AnimatePresence/exit ici : le passage d'une étape à l'autre ne
+			    doit JAMAIS dépendre de la fin d'une animation. Avec `mode="wait"`,
+			    si l'animation de sortie ne se termine pas (onglet en arrière-plan,
+			    rAF throttlé, machine lente, "réduire les animations"), l'étape
+			    suivante n'est jamais montée et le formulaire paraît bloqué. */}
+			<>
 				{step === "form" && (
 					<motion.div
 						key="form"
 						initial={{ opacity: 0, x: -16 }}
 						animate={{ opacity: 1, x: 0 }}
-						exit={{ opacity: 0, x: -16 }}
-						transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+						transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 					>
 						<FormStep
 							event={event}
@@ -117,8 +121,7 @@ export function BookFlow({ event, questions, slug }: BookFlowProps) {
 						key="calendar"
 						initial={{ opacity: 0, x: 16 }}
 						animate={{ opacity: 1, x: 0 }}
-						exit={{ opacity: 0, x: 16 }}
-						transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+						transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 					>
 						<CalendarStep
 							event={event}
@@ -137,13 +140,12 @@ export function BookFlow({ event, questions, slug }: BookFlowProps) {
 						key="success"
 						initial={{ opacity: 0, scale: 0.97 }}
 						animate={{ opacity: 1, scale: 1 }}
-						exit={{ opacity: 0 }}
 						transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 					>
 						<SuccessStep event={event} result={result} />
 					</motion.div>
 				)}
-			</AnimatePresence>
+			</>
 		</motion.div>
 	);
 }

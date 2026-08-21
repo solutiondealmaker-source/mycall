@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowRight, Calendar, MapPin } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -443,15 +443,15 @@ export function FormStep({
 					)}
 				</div>
 
-				{/* Sub-step animation */}
-				<AnimatePresence mode="wait">
+				{/* Sous-étapes : pas d'exit/mode="wait" — la navigation ne doit pas
+				    dépendre de la fin d'une animation (cf. book-flow.tsx). */}
+				<>
 					{subStep === "primary" ? (
 						<motion.form
 							key="primary"
 							initial={{ opacity: 0, x: -8 }}
 							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: -8 }}
-							transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+							transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
 							onSubmit={handlePrimaryNext}
 							noValidate
 							className="space-y-4"
@@ -560,7 +560,6 @@ export function FormStep({
 							key="questions"
 							initial={{ opacity: 0, x: 8 }}
 							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: 8 }}
 							transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
 							onSubmit={handleQuestionsNext}
 							noValidate
@@ -615,7 +614,7 @@ export function FormStep({
 							</div>
 						</motion.form>
 					)}
-				</AnimatePresence>
+				</>
 			</div>
 
 			{/* Divider */}
