@@ -6,15 +6,25 @@ import {
 	Calendar,
 	Copy,
 	Link2,
+	Loader2,
 	Phone,
 	Plus,
 	StickyNote,
 	Trash2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
@@ -32,6 +42,9 @@ const TABS: { id: TabId; label: string }[] = [
 	{ id: "notes", label: "Notes" },
 ];
 
+// Rôles autorisés à supprimer (aligné sur isAdminUser côté serveur).
+const ADMIN_ROLES = new Set(["admin", "ceo", "ops", "head_of_sales"]);
+
 interface LeadDetailProps {
 	leadId: Id<"leads">;
 }
@@ -40,9 +53,35 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 	const lead = useQuery(api.leads.getById, { id: leadId });
 	const users = useQuery(api.leads.listUsers, {});
 	const updateLead = useMutation(api.leads.update);
+	const removeLead = useMutation(api.leads.remove);
+	const me = useQuery(api.users.getMyProfile);
+	const isAdmin =
+		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
+	const router = useRouter();
 	const [activeTab, setActiveTab] = useState<TabId>("parcours");
+	const [confirmDelete, setConfirmDelete] = useState(false);
+	const [deleting, setDeleting] = useState(false);
 	const [outcomeBookingId, setOutcomeBookingId] =
 		useState<Id<"bookings"> | null>(null);
+
+	async function handleDelete() {
+		setDeleting(true);
+		try {
+			const res = await removeLead({ id: leadId });
+			toast.success(
+				"Lead supprimé" +
+					(res.bookings > 0
+						? ` (+ ${res.bookings} rendez-vous associé${res.bookings > 1 ? "s" : ""})`
+						: ""),
+			);
+			router.push("/crm");
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Suppression impossible",
+			);
+			setDeleting(false);
+		}
+	}
 
 	if (lead === undefined) {
 		return <LeadDetailSkeleton />;
@@ -294,6 +333,21 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 							</p>
 						)}
 					</div>
+
+					{/* Zone dangereuse — admin/direction uniquement */}
+					{isAdmin && (
+						<div className="mt-auto p-6 pt-4 border-t border-[var(--border)]">
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setConfirmDelete(true)}
+								className="w-full gap-1.5 text-xs text-[var(--destructive)] hover:text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+							>
+								<Trash2 className="w-3.5 h-3.5" />
+								Supprimer ce lead
+							</Button>
+						</div>
+					)}
 				</aside>
 
 				{/* ── Main ──────────────────────────────────────────────────────────── */}
@@ -365,6 +419,39 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 					if (!o) setOutcomeBookingId(null);
 				}}
 			/>
+
+			{/* Confirmation de suppression */}
+			<Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Supprimer {fullName} ?</DialogTitle>
+						<DialogDescription>
+							Cette action est <strong>irréversible</strong>. La fiche sera
+							supprimée, ainsi que ses rendez-vous, notes et relances associés.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="ghost"
+							onClick={() => setConfirmDelete(false)}
+							disabled={deleting}
+						>
+							Annuler
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={handleDelete}
+							disabled={deleting}
+						>
+							{deleting ? (
+								<Loader2 className="w-4 h-4 animate-spin" />
+							) : (
+								"Supprimer définitivement"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }

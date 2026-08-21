@@ -110,6 +110,7 @@ export default function CrmPage() {
 			{/* Floating bulk actions */}
 			<LeadsBulkActionsBar
 				selectedCount={selectedIds.size}
+				selectedIds={selectedIds}
 				onClearSelection={() => setSelectedIds(new Set())}
 			/>
 		</>

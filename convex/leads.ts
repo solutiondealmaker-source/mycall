@@ -12,7 +12,12 @@ import {
 	mutation,
 	query,
 } from "./_generated/server";
-import { getAuthenticatedUser, isAdminUser, requireAuth } from "./lib/auth";
+import {
+	getAuthenticatedUser,
+	isAdminUser,
+	requireAdmin,
+	requireAuth,
+} from "./lib/auth";
 import { normalizeEmail, normalizePhone } from "./lib/leadMatch";
 
 // ============================================================
@@ -275,6 +280,113 @@ export const update = mutation({
 			lastInteractionAt: Date.now(),
 		});
 		return id;
+	},
+});
+
+// ============================================================
+// MUTATIONS — suppression (admin / direction uniquement)
+// ============================================================
+
+// Supprime définitivement un lead ET tout ce qui lui est rattaché :
+// rendez-vous (+ leur journal d'activité), notes, relances, captures
+// partielles et logs de notification. Irréversible.
+async function _purgeLead(
+	ctx: MutationCtx,
+	leadId: Id<"leads">,
+): Promise<{ bookings: number; notes: number; followUps: number }> {
+	// 1. Bookings + leur journal d'activité
+	const bookings = await ctx.db
+		.query("bookings")
+		.withIndex("by_leadId_startTime", (q) => q.eq("leadId", leadId))
+		.collect();
+	for (const b of bookings) {
+		const logs = await ctx.db
+			.query("bookingActivityLog")
+			.withIndex("by_booking", (q) => q.eq("bookingId", b._id))
+			.collect();
+		for (const l of logs) await ctx.db.delete(l._id);
+
+		const notifs = await ctx.db
+			.query("notificationLogs")
+			.withIndex("by_booking", (q) => q.eq("bookingId", b._id))
+			.collect();
+		for (const n of notifs) await ctx.db.delete(n._id);
+
+		await ctx.db.delete(b._id);
+	}
+
+	// 2. Journal d'activité restant rattaché au lead
+	const leadLogs = await ctx.db
+		.query("bookingActivityLog")
+		.withIndex("by_lead_date", (q) => q.eq("leadId", leadId))
+		.collect();
+	for (const l of leadLogs) await ctx.db.delete(l._id);
+
+	// 3. Notes
+	const notes = await ctx.db
+		.query("leadNotes")
+		.withIndex("by_lead", (q) => q.eq("leadId", leadId))
+		.collect();
+	for (const n of notes) await ctx.db.delete(n._id);
+
+	// 4. Relances
+	const followUps = await ctx.db
+		.query("leadFollowUps")
+		.withIndex("by_lead", (q) => q.eq("leadId", leadId))
+		.collect();
+	for (const f of followUps) await ctx.db.delete(f._id);
+
+	// 5. Logs de notification rattachés au lead
+	const leadNotifs = await ctx.db
+		.query("notificationLogs")
+		.withIndex("by_lead", (q) => q.eq("leadId", leadId))
+		.collect();
+	for (const n of leadNotifs) await ctx.db.delete(n._id);
+
+	// 6. Captures partielles promues vers ce lead (pas d'index dédié → filtre)
+	const partials = await ctx.db
+		.query("partialLeads")
+		.filter((q) => q.eq(q.field("promotedLeadId"), leadId))
+		.collect();
+	for (const p of partials) await ctx.db.delete(p._id);
+
+	// 7. Le lead
+	await ctx.db.delete(leadId);
+
+	return {
+		bookings: bookings.length,
+		notes: notes.length,
+		followUps: followUps.length,
+	};
+}
+
+export const remove = mutation({
+	args: { id: v.id("leads") },
+	handler: async (ctx, { id }) => {
+		await requireAdmin(ctx);
+		const lead = await ctx.db.get(id);
+		if (!lead) throw new Error("Lead introuvable");
+		return await _purgeLead(ctx, id);
+	},
+});
+
+export const removeMany = mutation({
+	args: { ids: v.array(v.id("leads")) },
+	handler: async (ctx, { ids }) => {
+		await requireAdmin(ctx);
+		if (ids.length > 100) {
+			throw new Error("Trop de leads sélectionnés (100 max par suppression).");
+		}
+		let deleted = 0;
+		let bookings = 0;
+		for (const id of ids) {
+			const lead = await ctx.db.get(id);
+			if (!lead) continue; // déjà supprimé — on ignore
+			const res = await _purgeLead(ctx, id);
+			bookings += res.bookings;
+			deleted++;
+		}
+		return { deleted, bookings };
 	},
 });
 
