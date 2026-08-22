@@ -210,6 +210,12 @@ ${c.bold}3) Domaine${c.reset} : dans Vercel → Domains → ajoute ${domain || "
    chez ton registrar (Cloudflare) : CNAME ${domain ? domain.split(".")[0] : "<sous-domaine>"} → cname.vercel-dns.com (DNS only).
 
 ${c.bold}4) Le client s'inscrit${c.reset} sur son URL → il est admin de SA base isolée.
+
+${c.bold}5) (Optionnel) Stripe${c.reset} — le client le configure LUI-MÊME dans l'app :
+   Paramètres → Intégrations → il colle SA clé secrète (sk_test_… d'abord).
+   ${c.dim}Sa clé, son compte, son argent : ne la saisis pas à sa place.${c.reset}
+   Webhook à déclarer dans son Stripe (événement payment_intent.succeeded) :
+   ${c.cyan}${siteUrl}/webhooks/stripe${c.reset}
 `);
 	ok("Instance client configurée côté Convex ✅");
 	rl.close();

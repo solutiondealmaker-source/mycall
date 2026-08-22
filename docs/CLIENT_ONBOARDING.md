@@ -116,6 +116,38 @@ Il va sur son URL → `/signup` avec son email (celui de l'allowlist) → **il e
 admin** de son instance. Il ajoute ses closers via Settings → Team (chacun devra
 être ajouté à `SIGNUP_ALLOWED_EMAILS` pour pouvoir s'inscrire).
 
+### 8. (Optionnel) Stripe — encaisser depuis le CRM
+
+⚠️ **Chaque client utilise SA propre clé Stripe** : c'est son compte, son argent,
+ses paiements. Ne mets jamais de clé Stripe dans `onboard.config.json` (qui ne
+contient que les secrets *partagés* Google/Resend), et ne saisis pas la clé à sa
+place — **c'est lui qui la colle**, depuis l'interface, sur son instance.
+
+Tout se fait dans l'app, **aucune commande** :
+
+1. Le client se connecte → **Paramètres → Intégrations**.
+2. Il colle sa **clé secrète** (Dashboard Stripe → Développeurs → Clés API).
+   Commencer par `sk_test_…` pour valider le parcours sans encaisser réellement ;
+   la page affiche un badge **Mode test / Mode réel** pour éviter la confusion.
+3. **Webhook** (recommandé) — sans lui, les liens fonctionnent mais le lead doit
+   être passé en « gagné » à la main :
+   - copier l'URL affichée sur la page (elle pointe sur le `*.convex.site` **de
+     cette instance**, donc elle est différente pour chaque client) ;
+   - Stripe → Développeurs → Webhooks → *Add endpoint* → coller l'URL →
+     sélectionner l'événement **`payment_intent.succeeded`** ;
+   - recopier le *Signing secret* (`whsec_…`) dans le champ prévu.
+
+Résultat : dans la fiche d'un lead, un bouton **« Lien de paiement »** génère un
+lien Stripe (qui n'expire pas). Au paiement, le lead passe automatiquement en
+**gagné** avec le montant, visible dans les analytics.
+
+Le bouton n'apparaît que si Stripe est configuré **et** activé — un client qui
+n'en veut pas ne voit rien.
+
+**Sécurité** : la clé est stockée chiffrée côté Convex, n'est jamais réaffichée
+(seul un aperçu masqué), et l'endpoint webhook vérifie la signature Stripe — une
+requête non signée est rejetée.
+
 ---
 
 ## Récap des points qui coincent souvent
