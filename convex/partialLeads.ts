@@ -32,6 +32,12 @@ export const capturePartialLead = mutation({
 		phone: v.string(),
 		email: v.optional(v.string()),
 		formAnswers: v.optional(v.string()),
+		// Provenance de la campagne (lus dans l'URL côté client)
+		utmSource: v.optional(v.string()),
+		utmMedium: v.optional(v.string()),
+		utmCampaign: v.optional(v.string()),
+		utmTerm: v.optional(v.string()),
+		utmContent: v.optional(v.string()),
 	},
 	handler: async (ctx, rawArgs) => {
 		// Sécurité (M2) : borne la taille des entrées publiques non authentifiées
@@ -45,7 +51,28 @@ export const capturePartialLead = mutation({
 			email: rawArgs.email?.slice(0, 320),
 			formAnswers: rawArgs.formAnswers?.slice(0, 20_000),
 			sessionId: rawArgs.sessionId.slice(0, 128),
+			utmSource: rawArgs.utmSource?.slice(0, 200),
+			utmMedium: rawArgs.utmMedium?.slice(0, 200),
+			utmCampaign: rawArgs.utmCampaign?.slice(0, 200),
+			utmTerm: rawArgs.utmTerm?.slice(0, 200),
+			utmContent: rawArgs.utmContent?.slice(0, 200),
 		};
+
+		// Attribution "first touch" : on n'écrase jamais une provenance déjà
+		// enregistrée sur le lead (undefined = champ non modifié par le patch).
+		const utmPatch = (existing?: {
+			utmSource?: string;
+			utmMedium?: string;
+			utmCampaign?: string;
+			utmTerm?: string;
+			utmContent?: string;
+		}) => ({
+			utmSource: existing?.utmSource ?? args.utmSource,
+			utmMedium: existing?.utmMedium ?? args.utmMedium,
+			utmCampaign: existing?.utmCampaign ?? args.utmCampaign,
+			utmTerm: existing?.utmTerm ?? args.utmTerm,
+			utmContent: existing?.utmContent ?? args.utmContent,
+		});
 
 		// 1. Resolve event
 		const event = await ctx.db
@@ -135,6 +162,7 @@ export const capturePartialLead = mutation({
 				eventId: event._id,
 				eventSlug: event.slug,
 				lastInteractionAt: now,
+				...utmPatch(lead),
 				...statusPatch,
 				...setterPatch,
 			});
@@ -159,6 +187,7 @@ export const capturePartialLead = mutation({
 				phase: "potentiel",
 				setterUserId: event.setterId,
 				tagSource: event.tagSource ?? event.slug,
+				...utmPatch(),
 				lastInteractionAt: now,
 			});
 			await ctx.db.patch(partialLeadId, {

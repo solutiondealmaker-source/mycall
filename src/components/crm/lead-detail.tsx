@@ -316,6 +316,23 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 								{lead.tagSource}
 							</p>
 						)}
+						{/* Provenance de campagne (?utm_* sur le lien de réservation) */}
+						{(
+							[
+								["Campagne", lead.utmSource],
+								["Support", lead.utmMedium],
+								["Nom campagne", lead.utmCampaign],
+								["Mot-clé", lead.utmTerm],
+								["Contenu", lead.utmContent],
+							] as const
+						).map(([label, value]) =>
+							value ? (
+								<p key={label} className="text-xs text-[var(--ink-muted)]">
+									<span className="text-[var(--ink-ghost)]">{label} : </span>
+									{value}
+								</p>
+							) : null,
+						)}
 						{lead.lastInteractionAt && (
 							<p className="text-xs text-[var(--ink-muted)]">
 								<span className="text-[var(--ink-ghost)]">

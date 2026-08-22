@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SafeHtml } from "@/components/ui/safe-html";
 import { cn } from "@/lib/utils";
+import { captureUtmParams } from "@/lib/utm";
 import type { BookSessionData } from "@/types/book";
 import type { EventDoc, EventQuestion } from "@/types/events";
 import { api } from "../../../convex/_generated/api";
@@ -324,6 +325,8 @@ export function FormStep({
 							Object.keys(current.formAnswers).length > 0
 								? JSON.stringify(current.formAnswers)
 								: undefined,
+						// Provenance de la campagne (?utm_source=... sur le lien partagé)
+						...captureUtmParams(),
 					}).catch(() => {
 						// Silent — non-critical
 					});
