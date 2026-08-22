@@ -61,16 +61,16 @@ export function LeadsToolbar({
 	onColumnToggle,
 	onNewContact,
 }: LeadsToolbarProps) {
-	const [cmdOpen, setCmdOpen] = useState(false);
 	const [focused, setFocused] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	// Cmd+K handler
+	// Cmd/Ctrl+K → focus le champ de recherche réel (il filtre déjà la liste).
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
 				e.preventDefault();
-				setCmdOpen(true);
+				inputRef.current?.focus();
+				inputRef.current?.select();
 			}
 		}
 		window.addEventListener("keydown", handleKeyDown);
@@ -174,33 +174,6 @@ export function LeadsToolbar({
 					Nouveau contact
 				</Button>
 			</div>
-
-			{/* Command palette dialog — V1 UI placeholder */}
-			<Dialog open={cmdOpen} onOpenChange={setCmdOpen}>
-				<DialogContent className="max-w-lg">
-					<DialogHeader>
-						<DialogTitle className="text-sm font-medium text-[var(--ink-muted)]">
-							Recherche rapide
-						</DialogTitle>
-					</DialogHeader>
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-ghost)]" />
-						<input
-							autoFocus
-							placeholder="Rechercher un contact, un appel..."
-							className={cn(
-								"w-full h-10 pl-9 pr-4 text-sm rounded-[var(--radius-md)]",
-								"border border-[var(--border)] bg-[var(--surface-raised)]",
-								"text-[var(--ink)] placeholder:text-[var(--ink-ghost)]",
-								"focus:outline-none focus:ring-2 focus:ring-[var(--brand-glow)] focus:border-[var(--brand)]",
-							)}
-						/>
-					</div>
-					<p className="text-xs text-[var(--ink-ghost)] text-center py-8">
-						Fonctionnalité disponible en Phase 11
-					</p>
-				</DialogContent>
-			</Dialog>
 		</>
 	);
 }

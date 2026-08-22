@@ -2,8 +2,8 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Archive, Download, Loader2, Trash2, UserCog, X } from "lucide-react";
-import { useState } from "react";
+import { Download, Loader2, Trash2, UserCog, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
@@ -37,8 +37,84 @@ export function LeadsBulkActionsBar({
 		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
 
 	const removeMany = useMutation(api.leads.removeMany);
+	const assignMany = useMutation(api.leads.assignMany);
+	const users = useQuery(api.leads.listUsers, {});
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [assignOpen, setAssignOpen] = useState(false);
+	const [assignTo, setAssignTo] = useState("");
+	const [assigning, setAssigning] = useState(false);
+	const [exporting, setExporting] = useState(false);
+
+	const ids = Array.from(selectedIds ?? []) as Id<"leads">[];
+
+	// L'export lit les données à la demande (query "on-demand" via le client).
+	const exportRows = useQuery(
+		api.leads.exportByIds,
+		exporting && ids.length > 0 ? { ids } : "skip",
+	);
+
+	// Dès que les données arrivent, on déclenche le téléchargement.
+	useEffect(() => {
+		if (!exporting || exportRows === undefined) return;
+		try {
+			if (exportRows.length === 0) {
+				toast.error("Aucune donnée exportable");
+				return;
+			}
+			const headers = Object.keys(exportRows[0] as Record<string, unknown>);
+			const escape = (v: unknown) => {
+				const s = String(v ?? "");
+				return /[",;\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+			};
+			const csv = [
+				headers.join(";"),
+				...exportRows.map((r) =>
+					headers
+						.map((h) => escape((r as Record<string, unknown>)[h]))
+						.join(";"),
+				),
+			].join("\n");
+
+			// BOM UTF-8 pour qu'Excel affiche correctement les accents.
+			const blob = new Blob([`﻿${csv}`], {
+				type: "text/csv;charset=utf-8;",
+			});
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+			a.click();
+			URL.revokeObjectURL(url);
+			toast.success(`${exportRows.length} lead(s) exporté(s)`);
+		} finally {
+			setExporting(false);
+		}
+	}, [exporting, exportRows]);
+
+	function handleExport() {
+		if (ids.length === 0) return;
+		setExporting(true);
+	}
+
+	async function handleAssign() {
+		setAssigning(true);
+		try {
+			const res = await assignMany({
+				ids,
+				closerUserId: assignTo ? (assignTo as Id<"users">) : undefined,
+			});
+			toast.success(`${res.updated} lead(s) réassigné(s)`);
+			setAssignOpen(false);
+			onClearSelection();
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Assignation impossible",
+			);
+		} finally {
+			setAssigning(false);
+		}
+	}
 
 	async function handleDelete() {
 		if (!selectedIds || selectedIds.size === 0) return;
@@ -94,31 +170,31 @@ export function LeadsBulkActionsBar({
 
 				{/* Actions */}
 				<div className="flex items-center gap-1.5">
+					{isAdmin && (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => setAssignOpen(true)}
+							className="gap-1.5 h-7 text-xs"
+							title="Assigner un closer"
+						>
+							<UserCog className="w-3.5 h-3.5" />
+							Assigner
+						</Button>
+					)}
 					<Button
 						variant="ghost"
 						size="sm"
+						onClick={handleExport}
+						disabled={exporting}
 						className="gap-1.5 h-7 text-xs"
-						title="Assigner un closer (à venir)"
+						title="Exporter la sélection en CSV"
 					>
-						<UserCog className="w-3.5 h-3.5" />
-						Assigner
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="gap-1.5 h-7 text-xs"
-						title="Archiver (à venir)"
-					>
-						<Archive className="w-3.5 h-3.5" />
-						Archiver
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="gap-1.5 h-7 text-xs"
-						title="Exporter CSV (à venir)"
-					>
-						<Download className="w-3.5 h-3.5" />
+						{exporting ? (
+							<Loader2 className="w-3.5 h-3.5 animate-spin" />
+						) : (
+							<Download className="w-3.5 h-3.5" />
+						)}
 						Exporter
 					</Button>
 
@@ -148,6 +224,52 @@ export function LeadsBulkActionsBar({
 					<X className="w-3.5 h-3.5" />
 				</Button>
 			</motion.div>
+
+			{/* Assignation groupée */}
+			<Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>
+							Assigner {selectedCount} lead{selectedCount > 1 ? "s" : ""}
+						</DialogTitle>
+						<DialogDescription>
+							Choisis le closer responsable de ces contacts.
+						</DialogDescription>
+					</DialogHeader>
+					<select
+						value={assignTo}
+						onChange={(e) => setAssignTo(e.target.value)}
+						className={cn(
+							"w-full h-10 px-3 text-sm rounded-[var(--radius-md)]",
+							"border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--ink)]",
+							"focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20",
+						)}
+					>
+						<option value="">— Aucun closer —</option>
+						{users?.map((u) => (
+							<option key={u._id} value={u._id}>
+								{u.name ?? u.email}
+							</option>
+						))}
+					</select>
+					<DialogFooter>
+						<Button
+							variant="ghost"
+							onClick={() => setAssignOpen(false)}
+							disabled={assigning}
+						>
+							Annuler
+						</Button>
+						<Button onClick={handleAssign} disabled={assigning}>
+							{assigning ? (
+								<Loader2 className="w-4 h-4 animate-spin" />
+							) : (
+								"Assigner"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
 				<DialogContent className="max-w-md">

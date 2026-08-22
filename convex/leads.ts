@@ -284,6 +284,77 @@ export const update = mutation({
 });
 
 // ============================================================
+// MUTATIONS — actions groupées
+// ============================================================
+
+// Assigne un closer à plusieurs leads d'un coup (admin / direction).
+export const assignMany = mutation({
+	args: {
+		ids: v.array(v.id("leads")),
+		closerUserId: v.optional(v.id("users")),
+	},
+	handler: async (ctx, { ids, closerUserId }) => {
+		await requireAdmin(ctx);
+		if (ids.length > 200) {
+			throw new Error("Trop de leads sélectionnés (200 max).");
+		}
+		if (closerUserId) {
+			const target = await ctx.db.get(closerUserId);
+			if (!target) throw new Error("Utilisateur introuvable");
+		}
+		const now = Date.now();
+		let updated = 0;
+		for (const id of ids) {
+			const lead = await ctx.db.get(id);
+			if (!lead) continue;
+			await ctx.db.patch(id, { closerUserId, lastInteractionAt: now });
+			updated++;
+		}
+		return { updated };
+	},
+});
+
+// Données d'export CSV pour les leads sélectionnés. Cloisonné : un non-admin
+// n'exporte que ses propres leads, même s'il en sélectionne d'autres.
+export const exportByIds = query({
+	args: { ids: v.array(v.id("leads")) },
+	handler: async (ctx, { ids }) => {
+		const { userId, seeAll } = await getLeadScope(ctx);
+		if (ids.length > 5000) throw new Error("Export trop volumineux.");
+
+		const users = await ctx.db.query("users").collect();
+		const nameById = new Map(
+			users.map((u) => [u._id, u.name ?? u.email ?? ""]),
+		);
+
+		const out: Array<Record<string, string | number>> = [];
+		for (const id of ids) {
+			const l = await ctx.db.get(id);
+			if (!l) continue;
+			if (!seeAll && !ownsLead(l, userId)) continue;
+			out.push({
+				prenom: l.firstName ?? "",
+				nom: l.lastName ?? "",
+				email: l.email ?? "",
+				telephone: l.phone ?? "",
+				statut: l.status,
+				source: l.tagSource ?? "",
+				campagne: l.utmSource ?? "",
+				nomCampagne: l.utmCampaign ?? "",
+				evenement: l.eventSlug ?? "",
+				closer: l.closerUserId ? (nameById.get(l.closerUserId) ?? "") : "",
+				montantEuros: l.montantContracte ? l.montantContracte / 100 : "",
+				creeLe: new Date(l._creationTime).toISOString(),
+				derniereActivite: l.lastInteractionAt
+					? new Date(l.lastInteractionAt).toISOString()
+					: "",
+			});
+		}
+		return out;
+	},
+});
+
+// ============================================================
 // MUTATIONS — suppression (admin / direction uniquement)
 // ============================================================
 
