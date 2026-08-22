@@ -68,19 +68,48 @@ Variables, ou CLI) — **valeurs prises dans le `.env.local` généré** :
 |---|---|
 | `NEXT_PUBLIC_CONVEX_URL` | `.env.local` |
 | `NEXT_PUBLIC_CONVEX_SITE_URL` | `.env.local` |
+| `NEXT_PUBLIC_APP_URL` | domaine du client (étape 6) — sinon les liens `/book`<br>copiés portent l'URL technique `*.vercel.app` |
 | `GOOGLE_CLIENT_ID` | `.env.local` |
 | `GOOGLE_OAUTH_STATE_SECRET` | `.env.local` |
 
 Performance : garde la **région Vercel en Europe** (`vercel.json` → `fra1`, déjà
 dans le repo) pour coller au Convex EU.
 
-### 6. Recaler APP_BASE_URL sur Convex = l'URL publique Vercel du client
+⚠️ **Deployment Protection** : si le projet Vercel a la protection SSO activée,
+l'URL renvoie une redirection vers `vercel.com/sso-api` et **les prospects ne
+peuvent pas accéder à la page de réservation**. À désactiver
+(Settings → Deployment Protection) pour l'URL publique du client.
+
+### 6. Brancher le domaine du client ⚠️ (les 3 pièges)
+
+**a) Toujours un SOUS-domaine, jamais la racine.** Si le client a déjà un site
+sur `client.com`, ajouter la racine dans Vercel entre en conflit avec les
+enregistrements existants (erreur *"An A, AAAA, or CNAME record with that host
+already exists"*) et casserait son site + ses emails. Utiliser
+`rdv.client.com` (ou `app.` / `book.`).
+
+1. **Vercel → projet → Settings → Domains → Add** → `rdv.client.com`
+   Vercel affiche alors la cible CNAME à créer (elle porte le nom du
+   sous-domaine, pas `@`).
+2. **Chez le registrar / Cloudflare → Add record** :
+   - Type : **CNAME**
+   - Name : **`rdv`** (le sous-domaine seul)
+   - Target : la valeur exacte donnée par Vercel (`cname.vercel-dns.com` ou
+     équivalent)
+   - **b) Proxy status : `DNS only`** (nuage **gris**). En *Proxied* (orange),
+     Vercel affiche *"Proxy Detected"* et la gestion SSL/bot casse.
+3. Attendre le passage en **Valid Configuration** (SSL automatique, 1–5 min).
+
+**c) Cohérence des URL** — une fois le domaine actif, poser les deux :
 ```bash
-bunx convex env set APP_BASE_URL "https://<url-publique-vercel>"
+bunx convex env set APP_BASE_URL "https://rdv.client.com"   # liens des emails + retour OAuth
 ```
-⚠️ L'URL doit être **publique** (pas derrière la Deployment Protection Vercel) et
-le client doit naviguer sur **cette même URL** (sinon la session se perd après
-l'OAuth Google). Idéal : un **domaine perso par client** (`app.client.com`).
+et `NEXT_PUBLIC_APP_URL` = la même valeur côté Vercel (étape 5), puis
+**redéployer** (`bunx vercel --prod`) pour que la variable soit prise en compte.
+
+Le client doit ensuite **naviguer sur ce domaine** (pas sur l'URL `*.vercel.app`),
+sinon la session se perd après l'OAuth Google et les liens copiés portent le
+mauvais domaine.
 
 ### 7. Le client s'inscrit
 Il va sur son URL → `/signup` avec son email (celui de l'allowlist) → **il est
@@ -90,6 +119,14 @@ admin** de son instance. Il ajoute ses closers via Settings → Team (chacun dev
 ---
 
 ## Récap des points qui coincent souvent
+- **Le lien copié porte `*.vercel.app`** → `NEXT_PUBLIC_APP_URL` absente ou pas
+  redéployée après l'avoir posée (étape 5/6).
+- **"record with that host already exists"** → tu ajoutes la racine du domaine au
+  lieu d'un sous-domaine (étape 6a).
+- **"Proxy Detected" dans Vercel** → le CNAME est en *Proxied* chez Cloudflare,
+  le passer en **DNS only** (étape 6b).
+- **La page de réservation renvoie vers `vercel.com/sso`** → Deployment
+  Protection activée sur le projet (étape 5).
 - **Emails qui n'arrivent pas** → Resend encore en sandbox (étape prérequis 1).
 - **Google Calendar qui échoue** → redirect URI de l'instance pas ajouté (étape 4).
 - **Déconnecté après OAuth** → `APP_BASE_URL` ≠ l'URL réellement visitée (étape 6).
