@@ -19,7 +19,7 @@ import { ScheduleSection } from "@/components/events/sections/schedule-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, publicBookingUrl } from "@/lib/utils";
 import type {
 	EventDoc,
 	EventHost,
@@ -113,11 +113,12 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 	const publicUrl = `/book/${event?.slug ?? ""}`;
 
 	const copyPublicUrl = useCallback(() => {
-		const url = `${typeof window !== "undefined" ? window.location.origin : ""}${publicUrl}`;
-		navigator.clipboard.writeText(url).then(() => {
-			toast.success("URL copiée dans le presse-papier");
-		});
-	}, [publicUrl]);
+		navigator.clipboard
+			.writeText(publicBookingUrl(event?.slug ?? ""))
+			.then(() => {
+				toast.success("URL copiée dans le presse-papier");
+			});
+	}, [event?.slug]);
 
 	if (
 		event === undefined ||

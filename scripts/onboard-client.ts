@@ -179,6 +179,9 @@ async function main() {
 
 	// 6. .env.local (côté Next)
 	env.set("NEXT_PUBLIC_CONVEX_SITE_URL", siteUrl);
+	// Domaine canonique : sans ça, les liens /book copiés depuis le dashboard
+	// portent l'URL technique Vercel au lieu du domaine du client.
+	if (appBaseUrl) env.set("NEXT_PUBLIC_APP_URL", appBaseUrl);
 	env.set("GOOGLE_CLIENT_ID", cfg.GOOGLE_CLIENT_ID);
 	env.set("GOOGLE_OAUTH_STATE_SECRET", stateSecret);
 	if (appBaseUrl) env.set("APP_BASE_URL", appBaseUrl);
@@ -198,6 +201,7 @@ ${c.bold}2) Déployer sur Vercel${c.reset} :
    Puis pose ces 4 variables (Vercel → Settings → Env Variables, Production) :
      NEXT_PUBLIC_CONVEX_URL       = ${cloudUrl}
      NEXT_PUBLIC_CONVEX_SITE_URL  = ${siteUrl}
+     NEXT_PUBLIC_APP_URL          = ${appBaseUrl || "<url publique du client>"}
      GOOGLE_CLIENT_ID             = ${cfg.GOOGLE_CLIENT_ID}
      GOOGLE_OAUTH_STATE_SECRET    = ${stateSecret}
    ${appBaseUrl ? "" : `${c.yellow}(quand tu as l'URL Vercel, lance : bunx convex env set APP_BASE_URL <url>)${c.reset}`}

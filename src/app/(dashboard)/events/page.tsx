@@ -29,7 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { cn, publicBookingUrl } from "@/lib/utils";
 import type { EventDoc } from "@/types/events";
 
 // ─── Filter types ──────────────────────────────────────────────────────────────
@@ -94,8 +94,7 @@ export default function EventsPage() {
 	};
 
 	const handleCopyUrl = (slug: string) => {
-		const url = `${window.location.origin}/book/${slug}`;
-		navigator.clipboard.writeText(url).then(() => {
+		navigator.clipboard.writeText(publicBookingUrl(slug)).then(() => {
 			toast.success("URL copiée !");
 		});
 	};

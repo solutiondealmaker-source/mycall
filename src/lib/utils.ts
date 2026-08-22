@@ -6,6 +6,22 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * URL publique d'une page de réservation.
+ *
+ * Utilise le domaine canonique (`NEXT_PUBLIC_APP_URL`) plutôt que
+ * `window.location.origin` : sans ça, un lien copié depuis l'URL technique
+ * Vercel (*.vercel.app) porte ce domaine au lieu du domaine de marque.
+ * Fallback sur l'origine courante si la variable n'est pas définie.
+ */
+export function publicBookingUrl(slug: string): string {
+	const base = (
+		process.env.NEXT_PUBLIC_APP_URL ||
+		(typeof window !== "undefined" ? window.location.origin : "")
+	).replace(/\/$/, "");
+	return `${base}/book/${slug}`;
+}
+
+/**
  * Formate un timestamp (ms) en durée relative.
  * Ex : "il y a 2h", "il y a 3j", "à l'instant"
  */
