@@ -619,6 +619,34 @@ export const listBookingsByLead = query({
 	},
 });
 
+// Relances d'un lead (onglet Relances de la fiche). Cloisonné comme le reste.
+export const listFollowUpsByLead = query({
+	args: { leadId: v.id("leads") },
+	handler: async (ctx, { leadId }) => {
+		const { userId, seeAll } = await getLeadScope(ctx);
+		const lead = await ctx.db.get(leadId);
+		if (!lead || (!seeAll && !ownsLead(lead, userId))) return [];
+
+		const rows = await ctx.db
+			.query("leadFollowUps")
+			.withIndex("by_lead", (q) => q.eq("leadId", leadId))
+			.collect();
+		rows.sort((a, b) => a.dueAt - b.dueAt);
+
+		// Enrichit avec le nom du closer responsable
+		const closerIds = [...new Set(rows.map((r) => r.closerUserId))];
+		const closers = await Promise.all(closerIds.map((id) => ctx.db.get(id)));
+		const nameById = new Map(
+			closers.filter(Boolean).map((c) => [c?._id, c?.name ?? c?.email]),
+		);
+
+		return rows.map((r) => ({
+			...r,
+			closerName: nameById.get(r.closerUserId) ?? null,
+		}));
+	},
+});
+
 // Notes for a specific lead (used in Notes tab)
 export const listNotesByLead = query({
 	args: { leadId: v.id("leads") },

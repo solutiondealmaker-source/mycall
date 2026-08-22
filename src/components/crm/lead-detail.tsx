@@ -36,11 +36,12 @@ import { LeadPipelineStepper } from "./lead-pipeline-stepper";
 import { LeadStatusBadge } from "./lead-status-badge";
 import { OutcomeModal } from "./outcome-modal";
 
-type TabId = "parcours" | "appels" | "notes";
+type TabId = "parcours" | "appels" | "relances" | "notes";
 
 const TABS: { id: TabId; label: string }[] = [
 	{ id: "parcours", label: "Parcours" },
 	{ id: "appels", label: "Appels" },
+	{ id: "relances", label: "Relances" },
 	{ id: "notes", label: "Notes" },
 ];
 
@@ -462,6 +463,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 										onRecordOutcome={(id) => setOutcomeBookingId(id)}
 									/>
 								)}
+								{activeTab === "relances" && <RelancesTab leadId={leadId} />}
 								{activeTab === "notes" && <NotesTab leadId={leadId} />}
 							</motion.div>
 						</AnimatePresence>
@@ -596,6 +598,154 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 				</DialogContent>
 			</Dialog>
 		</>
+	);
+}
+
+// ─── Relances tab ─────────────────────────────────────────────────────────────
+
+const FOLLOWUP_STATUS: Record<string, { label: string; className: string }> = {
+	pending: {
+		label: "À faire",
+		className: "bg-[var(--warning-soft)] text-[var(--warning)]",
+	},
+	done: {
+		label: "Faite",
+		className: "bg-[var(--success-soft)] text-[var(--success)]",
+	},
+	missed: {
+		label: "Manquée",
+		className: "bg-[var(--destructive-soft)] text-[var(--destructive)]",
+	},
+	cancelled: {
+		label: "Annulée",
+		className: "bg-[var(--surface-muted)] text-[var(--ink-ghost)]",
+	},
+};
+
+const CHANNEL_LABEL: Record<string, string> = {
+	call: "Appel",
+	sms: "SMS",
+	email: "Email",
+	other: "Autre",
+};
+
+function RelancesTab({ leadId }: { leadId: Id<"leads"> }) {
+	const followUps = useQuery(api.leads.listFollowUpsByLead, { leadId });
+	const complete = useMutation(api.leads.completeFollowUp);
+	const cancel = useMutation(api.leads.cancelFollowUp);
+
+	if (followUps === undefined) {
+		return <p className="text-sm text-[var(--ink-ghost)]">Chargement…</p>;
+	}
+	if (followUps.length === 0) {
+		return (
+			<div className="py-10 text-center">
+				<p className="text-sm text-[var(--ink-muted)]">
+					Aucune relance planifiée
+				</p>
+				<p className="text-xs text-[var(--ink-ghost)] mt-1">
+					Une relance se crée en enregistrant l'issue d'un appel en « Follow-up
+					».
+				</p>
+			</div>
+		);
+	}
+
+	return (
+		<ul className="flex flex-col divide-y divide-[var(--border)]">
+			{followUps.map((f) => {
+				const st = FOLLOWUP_STATUS[f.status] ?? FOLLOWUP_STATUS.pending;
+				const overdue = f.status === "pending" && f.dueAt < Date.now();
+				return (
+					<li
+						key={f._id}
+						className="py-3 flex items-start justify-between gap-3"
+					>
+						<div className="min-w-0">
+							<div className="flex items-center gap-2 flex-wrap">
+								<span
+									className={cn(
+										"text-[11px] font-medium px-2 py-0.5 rounded-full",
+										st.className,
+									)}
+								>
+									{st.label}
+								</span>
+								<span className="text-xs text-[var(--ink-muted)]">
+									{CHANNEL_LABEL[f.channel] ?? f.channel}
+								</span>
+								<span
+									className={cn(
+										"text-xs",
+										overdue
+											? "text-[var(--destructive)] font-medium"
+											: "text-[var(--ink-muted)]",
+									)}
+								>
+									{new Intl.DateTimeFormat("fr-FR", {
+										day: "numeric",
+										month: "short",
+										hour: "2-digit",
+										minute: "2-digit",
+									}).format(new Date(f.dueAt))}
+									{overdue ? " — en retard" : ""}
+								</span>
+							</div>
+							<p className="text-sm text-[var(--ink)] mt-1">{f.reason}</p>
+							{f.note && (
+								<p className="text-xs text-[var(--ink-muted)] mt-0.5">
+									{f.note}
+								</p>
+							)}
+							{f.closerName && (
+								<p className="text-[11px] text-[var(--ink-ghost)] mt-0.5">
+									{f.closerName}
+								</p>
+							)}
+						</div>
+
+						{f.status === "pending" && (
+							<div className="flex gap-1.5 shrink-0">
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-7 text-xs"
+									onClick={async () => {
+										try {
+											await complete({ followUpId: f._id });
+											toast.success("Relance marquée faite");
+										} catch (err) {
+											toast.error(
+												err instanceof Error ? err.message : "Erreur",
+											);
+										}
+									}}
+								>
+									Faite
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-7 text-xs text-[var(--ink-muted)]"
+									onClick={async () => {
+										try {
+											await cancel({ followUpId: f._id });
+											toast.success("Relance annulée");
+										} catch (err) {
+											toast.error(
+												err instanceof Error ? err.message : "Erreur",
+											);
+										}
+									}}
+								>
+									Annuler
+								</Button>
+							</div>
+						)}
+					</li>
+				);
+			})}
+		</ul>
 	);
 }
 

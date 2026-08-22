@@ -47,6 +47,7 @@ export const getSettings = query({
 				? ("live" as const)
 				: ("test" as const),
 			stripeCurrency: s?.stripeCurrency ?? "eur",
+			stripeWebhookConfigured: Boolean(s?.stripeWebhookSecret),
 			updatedAt: s?.updatedAt ?? null,
 		};
 	},
@@ -122,6 +123,88 @@ export const removeStripeKey = mutation({
 			updatedByUserId: userId,
 		});
 		return { ok: true };
+	},
+});
+
+export const setWebhookSecret = mutation({
+	args: { webhookSecret: v.string() },
+	handler: async (ctx, { webhookSecret }) => {
+		const userId = await requireAdmin(ctx);
+		const secret = webhookSecret.trim();
+		if (secret && !secret.startsWith("whsec_")) {
+			throw new Error("Le secret de webhook Stripe commence par whsec_.");
+		}
+		const existing = await ctx.db
+			.query("integrationSettings")
+			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
+			.first();
+		if (!existing) throw new Error("Configure d'abord la clé secrète Stripe.");
+		await ctx.db.patch(existing._id, {
+			stripeWebhookSecret: secret || undefined,
+			updatedAt: Date.now(),
+			updatedByUserId: userId,
+		});
+		return { ok: true };
+	},
+});
+
+// Secret de signature du webhook — lu par l'httpAction publique.
+export const getWebhookSecretInternal = internalQuery({
+	args: {},
+	handler: async (ctx) => {
+		const s = await ctx.db
+			.query("integrationSettings")
+			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
+			.first();
+		return s?.stripeWebhookSecret ?? null;
+	},
+});
+
+// Applique un paiement réussi : lead gagné + montant + trace.
+// Idempotent : un même paymentIntent ne peut pas créditer deux fois.
+export const applyPaymentSucceededInternal = internalMutation({
+	args: {
+		leadId: v.string(),
+		amountCents: v.number(),
+		paymentIntentId: v.string(),
+	},
+	handler: async (ctx, { leadId, amountCents, paymentIntentId }) => {
+		let lead: Awaited<ReturnType<typeof ctx.db.get>> = null;
+		try {
+			lead = await ctx.db.get(leadId as never);
+		} catch {
+			return { ok: false, reason: "invalid_lead_id" };
+		}
+		if (!lead) return { ok: false, reason: "lead_not_found" };
+
+		// Idempotence : si une note porte déjà ce paymentIntent, on ne refait rien.
+		const notes = await ctx.db
+			.query("leadNotes")
+			.withIndex("by_lead", (q) => q.eq("leadId", leadId as never))
+			.collect();
+		if (notes.some((n) => n.body.includes(paymentIntentId))) {
+			return { ok: true, reason: "already_applied" };
+		}
+
+		const now = Date.now();
+		await ctx.db.patch(leadId as never, {
+			status: "gagne" as const,
+			phase: "gagne",
+			montantContracte: amountCents,
+			convertedAt: now,
+			lastInteractionAt: now,
+		});
+
+		const authorId = (lead as { closerUserId?: unknown }).closerUserId;
+		if (authorId) {
+			await ctx.db.insert("leadNotes", {
+				leadId: leadId as never,
+				body: `✅ Paiement reçu — ${(amountCents / 100).toFixed(2)} € (Stripe ${paymentIntentId})`,
+				authorUserId: authorId as never,
+				createdAt: now,
+			});
+		}
+		return { ok: true, reason: "applied" };
 	},
 });
 
@@ -230,11 +313,15 @@ export const createPaymentLink = action({
 			"product_data[name]": name,
 		});
 
-		// 2. Payment Link (n'expire pas)
+		// 2. Payment Link (n'expire pas).
+		// `payment_intent_data[metadata]` est propagé au PaymentIntent créé lors
+		// du paiement : c'est ce qui permet au webhook de retrouver le lead
+		// (les metadata du lien lui-même n'arrivent pas dans l'événement).
 		const link = await stripePost(cfg.key, "/payment_links", {
 			"line_items[0][price]": String(price.id),
 			"line_items[0][quantity]": "1",
 			"metadata[leadId]": leadId,
+			"payment_intent_data[metadata][leadId]": leadId,
 		});
 
 		const url = String(link.url ?? "");

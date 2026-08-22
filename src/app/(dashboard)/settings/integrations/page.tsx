@@ -18,9 +18,32 @@ export default function IntegrationsPage() {
 	const setEnabled = useMutation(api.stripe.setStripeEnabled);
 	const removeKey = useMutation(api.stripe.removeStripeKey);
 
+	const setWebhookSecret = useMutation(api.stripe.setWebhookSecret);
+
 	const [key, setKey] = useState("");
 	const [currency, setCurrency] = useState("eur");
 	const [saving, setSaving] = useState(false);
+	const [whsec, setWhsec] = useState("");
+	const [savingHook, setSavingHook] = useState(false);
+
+	// L'endpoint vit sur le domaine Convex (*.convex.site), pas sur l'app.
+	const webhookUrl = `${(process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "").replace(/\/$/, "")}/webhooks/stripe`;
+
+	async function handleSaveWebhook() {
+		if (!whsec.trim()) return;
+		setSavingHook(true);
+		try {
+			await setWebhookSecret({ webhookSecret: whsec.trim() });
+			setWhsec("");
+			toast.success("Webhook configuré");
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Enregistrement impossible",
+			);
+		} finally {
+			setSavingHook(false);
+		}
+	}
 
 	async function handleSave() {
 		if (!key.trim()) return;
@@ -217,6 +240,83 @@ export default function IntegrationsPage() {
 						)}
 					</Button>
 				</div>
+
+				{/* Webhook — détection automatique des paiements */}
+				{configured && (
+					<div className="space-y-3 border-t border-[var(--border)] pt-5">
+						<div>
+							<h3 className="text-sm font-semibold text-[var(--ink)]">
+								Paiements automatiques (webhook)
+							</h3>
+							<p className="text-xs text-[var(--ink-muted)] mt-0.5">
+								Sans webhook, les liens fonctionnent mais tu dois marquer le
+								lead « gagné » à la main. Avec, c'est automatique.
+							</p>
+						</div>
+
+						<div className="space-y-1.5">
+							<Label className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+								1. URL à coller dans Stripe
+							</Label>
+							<div className="flex gap-2">
+								<code className="flex-1 text-xs bg-[var(--surface-raised)] border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2.5 break-all">
+									{webhookUrl}
+								</code>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										navigator.clipboard.writeText(webhookUrl);
+										toast.success("URL copiée");
+									}}
+								>
+									Copier
+								</Button>
+							</div>
+							<p className="text-xs text-[var(--ink-ghost)]">
+								Stripe → Développeurs → Webhooks → <em>Add endpoint</em> → colle
+								cette URL, puis sélectionne l'événement{" "}
+								<code>payment_intent.succeeded</code>.
+							</p>
+						</div>
+
+						<div className="space-y-1.5">
+							<Label
+								htmlFor="stripe-whsec"
+								className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]"
+							>
+								2. Secret de signature
+							</Label>
+							<div className="flex gap-2">
+								<Input
+									id="stripe-whsec"
+									type="password"
+									value={whsec}
+									onChange={(e) => setWhsec(e.target.value)}
+									placeholder="whsec_..."
+									className="h-10 font-mono text-sm"
+									autoComplete="off"
+								/>
+								<Button
+									variant="outline"
+									onClick={handleSaveWebhook}
+									disabled={savingHook || !whsec.trim()}
+								>
+									{savingHook ? (
+										<Loader2 className="w-4 h-4 animate-spin" />
+									) : (
+										"Enregistrer"
+									)}
+								</Button>
+							</div>
+							<p className="text-xs text-[var(--ink-ghost)]">
+								{settings?.stripeWebhookConfigured
+									? "✅ Webhook configuré — les paiements marquent le lead comme gagné automatiquement."
+									: "Stripe l'affiche après création de l'endpoint (Signing secret)."}
+							</p>
+						</div>
+					</div>
+				)}
 
 				<p className="text-xs text-[var(--ink-ghost)] border-t border-[var(--border)] pt-4">
 					💡 Commence en <strong>mode test</strong> (<code>sk_test_</code>) pour

@@ -516,6 +516,7 @@ export default defineSchema({
 	integrationSettings: defineTable({
 		singleton: v.literal("default"),
 		stripeSecretKey: v.optional(v.string()),
+		stripeWebhookSecret: v.optional(v.string()), // whsec_… (signature)
 		stripeEnabled: v.optional(v.boolean()),
 		stripeCurrency: v.optional(v.string()), // ex: "eur"
 		updatedAt: v.number(),

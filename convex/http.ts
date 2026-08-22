@@ -216,4 +216,107 @@ http.route({
 	}),
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Stripe — webhook de paiement
+//
+// Sécurité : Stripe signe chaque requête (header `Stripe-Signature`).
+// On recalcule le HMAC-SHA256 de `${timestamp}.${rawBody}` avec le secret
+// `whsec_…` et on compare en temps constant. Sans cette vérification,
+// n'importe qui pourrait déclarer un paiement en appelant cette URL.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function hmacSha256Hex(data: string, secret: string): Promise<string> {
+	const key = await crypto.subtle.importKey(
+		"raw",
+		new TextEncoder().encode(secret),
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"],
+	);
+	const sig = await crypto.subtle.sign(
+		"HMAC",
+		key,
+		new TextEncoder().encode(data),
+	);
+	return Array.from(new Uint8Array(sig))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+}
+
+const STRIPE_TOLERANCE_SEC = 300; // 5 min — rejette les rejeux tardifs
+
+http.route({
+	path: "/webhooks/stripe",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const rawBody = await request.text();
+		const sigHeader = request.headers.get("stripe-signature");
+		if (!sigHeader) return new Response("Missing signature", { status: 400 });
+
+		const secret = await ctx.runQuery(
+			internal.stripe.getWebhookSecretInternal,
+			{},
+		);
+		if (!secret) {
+			console.warn("[stripe webhook] no webhook secret configured");
+			return new Response("Not configured", { status: 400 });
+		}
+
+		// Header : "t=1699999999,v1=abc...,v1=def..."
+		const parts = sigHeader.split(",").map((p) => p.trim());
+		const timestamp = parts.find((p) => p.startsWith("t="))?.slice(2);
+		const signatures = parts
+			.filter((p) => p.startsWith("v1="))
+			.map((p) => p.slice(3));
+		if (!timestamp || signatures.length === 0) {
+			return new Response("Malformed signature", { status: 400 });
+		}
+
+		const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+		if (!Number.isFinite(age) || age > STRIPE_TOLERANCE_SEC) {
+			return new Response("Timestamp outside tolerance", { status: 400 });
+		}
+
+		const expected = await hmacSha256Hex(`${timestamp}.${rawBody}`, secret);
+		if (!signatures.some((s) => constantTimeEqual(s, expected))) {
+			console.error("[stripe webhook] signature mismatch");
+			return new Response("Invalid signature", { status: 400 });
+		}
+
+		// Signature valide — on peut faire confiance au contenu.
+		let event: {
+			type?: string;
+			data?: { object?: Record<string, unknown> };
+		};
+		try {
+			event = JSON.parse(rawBody);
+		} catch {
+			return new Response("Invalid JSON", { status: 400 });
+		}
+
+		if (event.type !== "payment_intent.succeeded") {
+			return new Response(null, { status: 200 }); // ignoré, mais acquitté
+		}
+
+		const pi = event.data?.object ?? {};
+		const metadata = (pi.metadata ?? {}) as Record<string, string>;
+		const leadId = metadata.leadId;
+		const amount = Number(pi.amount_received ?? pi.amount ?? 0);
+		const piId = String(pi.id ?? "");
+
+		if (!leadId || !amount || !piId) {
+			console.warn("[stripe webhook] payment without leadId metadata");
+			return new Response(null, { status: 200 });
+		}
+
+		await ctx.runMutation(internal.stripe.applyPaymentSucceededInternal, {
+			leadId,
+			amountCents: amount,
+			paymentIntentId: piId,
+		});
+
+		return new Response(null, { status: 200 });
+	}),
+});
+
 export default http;
