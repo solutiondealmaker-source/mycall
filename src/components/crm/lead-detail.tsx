@@ -1,11 +1,11 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
 	Calendar,
 	Copy,
-	Link2,
+	CreditCard,
 	Loader2,
 	Phone,
 	Plus,
@@ -25,6 +25,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
@@ -61,6 +63,43 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 	const [activeTab, setActiveTab] = useState<TabId>("parcours");
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+
+	// Stripe — lien de paiement (visible seulement si configuré et actif)
+	const stripeSettings = useQuery(
+		api.stripe.getSettings,
+		isAdmin ? {} : "skip",
+	);
+	const stripeReady = Boolean(
+		stripeSettings?.stripeConfigured && stripeSettings?.stripeEnabled,
+	);
+	const createPaymentLink = useAction(api.stripe.createPaymentLink);
+	const [payOpen, setPayOpen] = useState(false);
+	const [payAmount, setPayAmount] = useState("");
+	const [payLabel, setPayLabel] = useState("");
+	const [payLoading, setPayLoading] = useState(false);
+	const [payUrl, setPayUrl] = useState<string | null>(null);
+
+	async function handleCreatePaymentLink() {
+		const euros = Number.parseFloat(payAmount.replace(",", "."));
+		if (!Number.isFinite(euros) || euros < 1) {
+			toast.error("Montant invalide (minimum 1 €)");
+			return;
+		}
+		setPayLoading(true);
+		try {
+			const res = await createPaymentLink({
+				leadId,
+				amountCents: Math.round(euros * 100),
+				label: payLabel.trim() || undefined,
+			});
+			setPayUrl(res.url);
+			toast.success("Lien de paiement généré");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Génération impossible");
+		} finally {
+			setPayLoading(false);
+		}
+	}
 	const [outcomeBookingId, setOutcomeBookingId] =
 		useState<Id<"bookings"> | null>(null);
 
@@ -175,16 +214,18 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 							<StickyNote className="w-3.5 h-3.5" />
 							Ajouter une note
 						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							className="w-full justify-start gap-2 text-xs h-8"
-							disabled
-							title="Phase 11"
-						>
-							<Link2 className="w-3.5 h-3.5" />
-							Transaction (Phase 11)
-						</Button>
+						{stripeReady && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="w-full justify-start gap-2 text-xs h-8"
+								onClick={() => setPayOpen(true)}
+								title="Générer un lien de paiement Stripe"
+							>
+								<CreditCard className="w-3.5 h-3.5" />
+								Lien de paiement
+							</Button>
+						)}
 					</div>
 
 					{/* Attribution */}
@@ -436,6 +477,91 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 					if (!o) setOutcomeBookingId(null);
 				}}
 			/>
+
+			{/* Lien de paiement Stripe */}
+			<Dialog
+				open={payOpen}
+				onOpenChange={(o) => {
+					setPayOpen(o);
+					if (!o) {
+						setPayUrl(null);
+						setPayAmount("");
+						setPayLabel("");
+					}
+				}}
+			>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Lien de paiement</DialogTitle>
+						<DialogDescription>
+							Génère un lien Stripe à envoyer à {fullName}. Le lien n'expire
+							pas.
+						</DialogDescription>
+					</DialogHeader>
+
+					{payUrl ? (
+						<div className="space-y-3">
+							<div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] p-3">
+								<p className="text-xs text-[var(--ink-muted)] break-all">
+									{payUrl}
+								</p>
+							</div>
+							<Button
+								className="w-full"
+								onClick={() => {
+									navigator.clipboard.writeText(payUrl);
+									toast.success("Lien copié");
+								}}
+							>
+								Copier le lien
+							</Button>
+							<p className="text-xs text-[var(--ink-ghost)]">
+								Le lien a été ajouté aux notes du lead.
+							</p>
+						</div>
+					) : (
+						<div className="space-y-3">
+							<div className="space-y-1.5">
+								<Label htmlFor="pay-amount" className="text-xs">
+									Montant (€)
+								</Label>
+								<Input
+									id="pay-amount"
+									inputMode="decimal"
+									value={payAmount}
+									onChange={(e) => setPayAmount(e.target.value)}
+									placeholder="1500"
+									className="h-10"
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="pay-label" className="text-xs">
+									Intitulé (optionnel)
+								</Label>
+								<Input
+									id="pay-label"
+									value={payLabel}
+									onChange={(e) => setPayLabel(e.target.value)}
+									placeholder="Accompagnement 3 mois"
+									className="h-10"
+								/>
+							</div>
+							<Button
+								className="w-full"
+								onClick={handleCreatePaymentLink}
+								disabled={payLoading || !payAmount.trim()}
+								style={{ background: "var(--grad-brand)" }}
+							>
+								{payLoading ? (
+									<Loader2 className="w-4 h-4 animate-spin" />
+								) : (
+									"Générer le lien"
+								)}
+							</Button>
+						</div>
+					)}
+				</DialogContent>
+			</Dialog>
 
 			{/* Confirmation de suppression */}
 			<Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>

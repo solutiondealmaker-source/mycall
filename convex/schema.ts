@@ -510,6 +510,18 @@ export default defineSchema({
 		usageCount: v.number(),
 	}).index("by_name", ["name"]),
 
+	// Configuration des intégrations — singleton (1 seule row par déploiement).
+	// La clé secrète Stripe n'est JAMAIS renvoyée au client : les queries
+	// exposent uniquement un aperçu masqué (4 derniers caractères).
+	integrationSettings: defineTable({
+		singleton: v.literal("default"),
+		stripeSecretKey: v.optional(v.string()),
+		stripeEnabled: v.optional(v.boolean()),
+		stripeCurrency: v.optional(v.string()), // ex: "eur"
+		updatedAt: v.number(),
+		updatedByUserId: v.optional(v.id("users")),
+	}).index("by_singleton", ["singleton"]),
+
 	// Paramètres du pipeline — singleton (1 seule row par déploiement)
 	pipelineSettings: defineTable({
 		singleton: v.literal("default"), // clé unique du singleton

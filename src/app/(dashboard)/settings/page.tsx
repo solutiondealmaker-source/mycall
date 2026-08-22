@@ -7,6 +7,7 @@ import {
 	CalendarDays,
 	ChevronRight,
 	Clock,
+	Plug,
 	Tags,
 	User,
 	Users,
@@ -59,6 +60,13 @@ const SETTINGS_CARDS = [
 		icon: Tags,
 		title: "Catalogues",
 		description: "Raisons de perte, sources de leads",
+		adminOnly: true,
+	},
+	{
+		href: "/settings/integrations",
+		icon: Plug,
+		title: "Intégrations",
+		description: "Stripe — liens de paiement depuis le CRM",
 		adminOnly: true,
 	},
 ] as const;

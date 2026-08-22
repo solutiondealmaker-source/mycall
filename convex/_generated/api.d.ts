@@ -36,6 +36,7 @@ import type * as notifyDispatch from "../notifyDispatch.js";
 import type * as partialLeads from "../partialLeads.js";
 import type * as seed from "../seed.js";
 import type * as setupStatus from "../setupStatus.js";
+import type * as stripe from "../stripe.js";
 import type * as userAvailability from "../userAvailability.js";
 import type * as userCalendarSettings from "../userCalendarSettings.js";
 import type * as users from "../users.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   partialLeads: typeof partialLeads;
   seed: typeof seed;
   setupStatus: typeof setupStatus;
+  stripe: typeof stripe;
   userAvailability: typeof userAvailability;
   userCalendarSettings: typeof userCalendarSettings;
   users: typeof users;
