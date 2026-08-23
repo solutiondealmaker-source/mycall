@@ -1,9 +1,21 @@
-# Onboarding d'un client — runbook
+# Onboarding d'une instance — runbook
 
-Modèle : **une instance isolée par client** (son Convex + son Vercel + son domaine).
-Chaque client est **admin de son espace**, ses données sont **100 % cloisonnées** des autres.
+Modèle : **une instance isolée par espace** (son Convex + son Vercel + son domaine).
+Chaque instance a son **admin**, et ses données sont **100 % cloisonnées** des autres.
 
-Durée : ~15–20 min par client une fois les prérequis (Google, Resend) faits une seule fois.
+Ce runbook sert dans **deux cas**, avec exactement les mêmes étapes :
+
+- **Un client** à qui tu livres l'outil → c'est lui l'admin de son espace.
+- **Un de tes propres business** (plusieurs activités, plusieurs marques) → une
+  instance par business, chacune avec son domaine et ses leads.
+
+> 💡 **Plusieurs business à toi ?** Tu peux réutiliser **le même email** comme
+> admin sur toutes tes instances : ce sont des bases séparées, il n'y a aucun
+> conflit. Et comme chaque instance a son propre domaine, tu peux rester
+> **connecté aux deux en même temps** dans le même navigateur (les sessions sont
+> liées au domaine). Pas besoin d'adresses email différentes.
+
+Durée : ~15–20 min par instance une fois les prérequis (Google, Resend) faits une seule fois.
 
 ---
 
