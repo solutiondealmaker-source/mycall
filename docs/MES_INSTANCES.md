@@ -46,13 +46,40 @@ instances, je m'inscris donc en premier.
 
 | Service | Situation | Coût |
 |---|---|---|
-| **Vercel** | plan **Hobby** actuellement. Ses CGU visent l'usage **non commercial**. Pour des business qui facturent → **Pro**. | Pro ≈ **20 $/mois au total** (par membre de l'équipe, **projets illimités**) — pas 20 $ par business |
+| **Vercel** | plan **Hobby** actuellement → réservé à l'usage **personnel non commercial** (voir encadré) | Pro ≈ **20 $/mois au total** (par membre de l'équipe, **projets illimités**) — pas 20 $ par business |
 | **Convex** | free tier **par projet** → chaque business a son propre quota | 0 € tant que les volumes restent modestes |
 | **Resend** | 3 000 emails/mois offerts, partagés | 0 € au début |
 | **Domaines** | un sous-domaine par business (`rdv.`) | 0 € si je possède déjà les domaines |
 
 ➡️ **Un seul abonnement Vercel Pro couvre tous mes business.** C'est le seul coût
 fixe à prévoir.
+
+### Ce que dit exactement Vercel sur le plan Hobby
+
+Source : *Fair Use Guidelines* (vercel.com/docs/limits/fair-use-guidelines).
+
+Le plan Hobby est réservé à l'usage **personnel non commercial**. Vercel définit
+l'usage commercial comme tout déploiement servant au **gain financier de
+quiconque participe au projet** — y compris le développeur payé pour coder.
+Exemples cités : demander ou traiter un **paiement des visiteurs**, faire la
+promotion d'un produit/service, **être payé pour héberger** le site, l'affiliation,
+la publicité. Même les dons comptent.
+
+**Conséquence pour mes instances :** dès qu'un lien de paiement Stripe est actif,
+ou dès que je facture un client pour son instance, on est dans la définition —
+*le critère est la finalité lucrative, pas le fait que l'accès soit "interne"*.
+
+**Comment c'est détecté :** pas de scan automatique. En pratique : revue manuelle,
+signalement, ou dépassement des seuils Hobby (100 Go de transfert, 1M
+d'invocations/mois). Vercel indique chercher à contacter avant d'agir.
+
+**Le risque réel n'est pas financier mais opérationnel** : une suspension coupe la
+page de réservation → plus aucun prospect ne peut prendre RDV. Pour un outil
+d'acquisition, c'est le vrai coût.
+
+➡️ **Position retenue** : Hobby pendant la phase de test (aucun prospect réel).
+Passage en **Pro dès que de vrais RDV/paiements transitent** — 20 $/mois pour
+couvrir tous les business, vu comme une assurance de disponibilité.
 
 ### Et Cloudflare ?
 Son offre gratuite autorise le commercial, donc la tentation est réelle. **Mais
