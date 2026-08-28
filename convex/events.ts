@@ -4,7 +4,7 @@
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, requireReadAll } from "./lib/auth";
 
 // ============================================================
 // QUERIES
@@ -17,7 +17,8 @@ export const list = query({
 		search: v.optional(v.string()),
 	},
 	handler: async (ctx, { isActive, search }) => {
-		await requireAdmin(ctx);
+		// Lecture seule : les observateurs en ont besoin pour filtrer l'analytics.
+		await requireReadAll(ctx);
 		let rows: Doc<"events">[];
 		if (isActive !== undefined) {
 			rows = await ctx.db

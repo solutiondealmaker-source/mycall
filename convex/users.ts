@@ -62,6 +62,7 @@ const ROLE_VALUES = [
 	"ceo",
 	"ops",
 	"admin",
+	"viewer",
 ] as const;
 type RoleValue = (typeof ROLE_VALUES)[number];
 
@@ -76,6 +77,7 @@ export const updateUserRole = mutation({
 			v.literal("ceo"),
 			v.literal("ops"),
 			v.literal("admin"),
+			v.literal("viewer"),
 		),
 	},
 	handler: async (ctx, { userId, role }) => {

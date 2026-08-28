@@ -31,12 +31,28 @@ export function isAdminUser(user: AnyUser): boolean {
 	return Boolean(user.isAdmin) || ADMIN_ROLES.has(user.role as never);
 }
 
+// Lecture globale : les admins, plus le rôle "viewer" (observateur externe qui
+// suit l'activité — RDV, leads, chiffre d'affaires — sans rien pouvoir modifier).
+// À n'utiliser que dans des `query`. Toute écriture reste sous requireAdmin.
+export function canReadAll(user: AnyUser): boolean {
+	return isAdminUser(user) || user.role === "viewer";
+}
+
 // Throws unless caller is admin / privileged.
 export async function requireAdmin(
 	ctx: MutationCtx | QueryCtx,
 ): Promise<Id<"users">> {
 	const user = await getAuthenticatedUser(ctx);
 	if (!isAdminUser(user)) throw new Error("Réservé à l'administration");
+	return user._id;
+}
+
+// Idem, mais accepte aussi les observateurs. Réservé aux lectures.
+export async function requireReadAll(
+	ctx: MutationCtx | QueryCtx,
+): Promise<Id<"users">> {
+	const user = await getAuthenticatedUser(ctx);
+	if (!canReadAll(user)) throw new Error("Réservé à l'administration");
 	return user._id;
 }
 

@@ -14,7 +14,7 @@
 // Marque — configurable par instance
 // ============================================================
 
-const BRAND_NAME = process.env.BRAND_NAME?.trim() || "Mycall";
+export const BRAND_NAME = process.env.BRAND_NAME?.trim() || "Mycall";
 const BRAND_TAGLINE =
 	process.env.BRAND_TAGLINE?.trim() ??
 	"La plateforme de booking pour les équipes commerciales";
@@ -446,6 +446,46 @@ ${ctaButton("Voir mon rendez-vous", meetUrl ?? cancelUrl)}
 
 <p style="margin:20px 0 0;font-size:13px;color:#94A3B8;line-height:1.7;text-align:center">
   ${secondaryLink("Annuler le rendez-vous", cancelUrl)}
+</p>`;
+
+	return baseLayout(content);
+}
+
+// ============================================================
+// 6. Invitation — nouveau membre de l'équipe
+// ============================================================
+
+export interface InvitationArgs {
+	inviterName: string | null;
+	roleLabel: string;
+	roleDescription: string;
+	signupUrl: string;
+	expiresLabel: string;
+}
+
+export function invitationTemplate(args: InvitationArgs): string {
+	const { inviterName, roleLabel, roleDescription, signupUrl, expiresLabel } =
+		args;
+
+	const invitedBy = inviterName
+		? `${escapeHtml(inviterName)} vous invite à rejoindre`
+		: "Vous êtes invité·e à rejoindre";
+
+	const content = `
+<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Invitation à rejoindre ${escapeHtml(BRAND_NAME)}</h1>
+<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">${invitedBy} l'espace de travail ${escapeHtml(BRAND_NAME)}.</p>
+
+${infoBlock([
+	`<p style="margin:0;font-size:12px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.06em">Votre rôle</p>`,
+	`<p style="margin:6px 0 0;font-size:16px;font-weight:600;color:#1E293B">${escapeHtml(roleLabel)}</p>`,
+	`<p style="margin:6px 0 0;font-size:13px;color:#64748B;line-height:1.6">${escapeHtml(roleDescription)}</p>`,
+])}
+
+${ctaButton("Créer mon compte", signupUrl)}
+
+<p style="margin:20px 0 0;font-size:13px;color:#94A3B8;line-height:1.7;text-align:center">
+  Créez votre compte avec <strong style="color:#475569">cette adresse email</strong> — l'invitation n'est valable que pour elle.<br>
+  Elle expire le ${escapeHtml(expiresLabel)}.
 </p>`;
 
 	return baseLayout(content);

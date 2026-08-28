@@ -39,11 +39,38 @@ export default defineSchema({
 				v.literal("ceo"),
 				v.literal("ops"),
 				v.literal("admin"),
+				// Observateur : voit tout (RDV, leads, CA), ne modifie rien. Destiné
+				// aux accompagnants externes (coach, consultant, expert-comptable).
+				v.literal("viewer"),
 			),
 		),
 		isAdmin: v.optional(v.boolean()),
 		defaultTimezone: v.optional(v.string()), // ex: "Europe/Paris"
 	}).index("email", ["email"]),
+
+	// Invitations à rejoindre l'instance. Une invitation en attente autorise
+	// l'inscription de cet email, en complément de SIGNUP_ALLOWED_EMAILS : c'est
+	// ce qui permet d'ajouter un membre sans toucher aux variables d'environnement.
+	invitations: defineTable({
+		email: v.string(), // normalisé en minuscules
+		role: v.union(
+			v.literal("closer"),
+			v.literal("setter"),
+			v.literal("coach"),
+			v.literal("head_of_sales"),
+			v.literal("ceo"),
+			v.literal("ops"),
+			v.literal("admin"),
+			v.literal("viewer"),
+		),
+		invitedByUserId: v.id("users"),
+		createdAt: v.number(),
+		expiresAt: v.number(),
+		acceptedAt: v.optional(v.number()),
+		revokedAt: v.optional(v.number()),
+	})
+		.index("by_email", ["email"])
+		.index("by_createdAt", ["createdAt"]),
 
 	// ===========================================================
 	// BOOKING CORE
@@ -548,6 +575,7 @@ export default defineSchema({
 			v.literal("email_host_notif"),
 			v.literal("email_cancellation"),
 			v.literal("email_reschedule"),
+			v.literal("email_invitation"),
 		),
 		bookingId: v.optional(v.id("bookings")),
 		leadId: v.optional(v.id("leads")),

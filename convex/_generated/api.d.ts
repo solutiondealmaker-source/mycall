@@ -23,6 +23,7 @@ import type * as googleActions from "../googleActions.js";
 import type * as googleCalendarChannels from "../googleCalendarChannels.js";
 import type * as googleHelpers from "../googleHelpers.js";
 import type * as http from "../http.js";
+import type * as invitations from "../invitations.js";
 import type * as leads from "../leads.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_disqualification from "../lib/disqualification.js";
@@ -63,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   googleCalendarChannels: typeof googleCalendarChannels;
   googleHelpers: typeof googleHelpers;
   http: typeof http;
+  invitations: typeof invitations;
   leads: typeof leads;
   "lib/auth": typeof lib_auth;
   "lib/disqualification": typeof lib_disqualification;

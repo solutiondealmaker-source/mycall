@@ -2,14 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import {
-	ChevronLeft,
-	Loader2,
-	Mail,
-	ShieldOff,
-	Trash2,
-	UserPlus,
-} from "lucide-react";
+import { ChevronLeft, Loader2, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +10,8 @@ import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { InviteMemberDialog } from "@/components/settings/team/invite-member-dialog";
+import { PendingInvitations } from "@/components/settings/team/pending-invitations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,23 +23,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { canAdminister, INVITABLE_ROLES, type RoleValue } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const ROLE_OPTIONS = [
-	{ value: "closer", label: "Closer" },
-	{ value: "setter", label: "Setter" },
-	{ value: "coach", label: "Coach" },
-	{ value: "head_of_sales", label: "Head of Sales" },
-	{ value: "ceo", label: "CEO" },
-	{ value: "ops", label: "Ops" },
-	{ value: "admin", label: "Admin" },
-] as const;
-
-type RoleValue = (typeof ROLE_OPTIONS)[number]["value"];
-
 // ─── Component ───────────────────────────────────────────────────────────────
+
+const ROLE_OPTIONS = INVITABLE_ROLES;
 
 export default function TeamPage() {
 	const profile = useQuery(api.users.getMyProfile);
@@ -55,9 +39,7 @@ export default function TeamPage() {
 
 	const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-	const isAdmin =
-		profile?.isAdmin === true ||
-		["admin", "ceo", "ops", "head_of_sales"].includes(profile?.role ?? "");
+	const isAdmin = canAdminister(profile);
 
 	// Non-admin redirect hint
 	if (profile !== undefined && !isAdmin) {
@@ -128,16 +110,7 @@ export default function TeamPage() {
 				description="Gère les membres, rôles et permissions."
 				actions={
 					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							className="gap-1.5 opacity-50 cursor-not-allowed"
-							disabled
-							title="Disponible en V1.5"
-						>
-							<UserPlus className="w-4 h-4" />
-							Inviter un membre
-						</Button>
+						<InviteMemberDialog />
 						<Button variant="ghost" size="sm" asChild className="gap-1.5">
 							<Link href="/settings">
 								<ChevronLeft className="w-4 h-4" />
@@ -148,22 +121,7 @@ export default function TeamPage() {
 				}
 			/>
 
-			{/* Invite V1.5 notice */}
-			<motion.div
-				initial={{ opacity: 0, y: 8 }}
-				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.15 }}
-				className="card-premium p-4 mb-6 flex items-center gap-3"
-			>
-				<Mail className="w-4 h-4 text-[var(--brand)] shrink-0" />
-				<p className="text-xs text-[var(--ink-muted)]">
-					<span className="font-medium text-[var(--ink)]">
-						Invitation par email
-					</span>{" "}
-					— Les nouveaux membres peuvent créer leur compte directement via la
-					page de signup. L'invitation automatique par email arrive en V1.5.
-				</p>
-			</motion.div>
+			<PendingInvitations />
 
 			{/* Table */}
 			<motion.div

@@ -444,10 +444,11 @@ async function createGoogleEventForBooking(
 	});
 	if (!event) return null;
 
-	const siteUrl = (process.env.SITE_URL ?? "http://localhost:3002").replace(
-		/\/$/,
-		"",
-	);
+	const siteUrl = (
+		process.env.APP_BASE_URL ??
+		process.env.SITE_URL ??
+		"http://localhost:3002"
+	).replace(/\/$/, "");
 	const startDate = new Date(booking.startTime);
 	const dateStr = new Intl.DateTimeFormat("fr-FR", {
 		weekday: "long",

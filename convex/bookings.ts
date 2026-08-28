@@ -26,7 +26,7 @@ import {
 	query,
 } from "./_generated/server";
 import { _applyAutoPhase, _upsertLeadForBooking } from "./leads";
-import { getAuthenticatedUser, isAdminUser } from "./lib/auth";
+import { canReadAll, getAuthenticatedUser, isAdminUser } from "./lib/auth";
 import { isDisqualified } from "./lib/disqualification";
 import {
 	computeSlotsForDay,
@@ -1925,7 +1925,7 @@ export const listUpcoming = query({
 		const user = await getAuthenticatedUser(ctx);
 		const now = Date.now();
 		const n = limit ?? 5;
-		if (isAdminUser(user)) {
+		if (canReadAll(user)) {
 			return await ctx.db
 				.query("bookings")
 				.withIndex("by_status_startTime", (q) =>
@@ -1966,7 +1966,7 @@ export const listByLead = query({
 		const lead = await ctx.db.get(leadId);
 		if (!lead) return [];
 		if (
-			!isAdminUser(user) &&
+			!canReadAll(user) &&
 			lead.closerUserId !== user._id &&
 			lead.setterUserId !== user._id
 		) {

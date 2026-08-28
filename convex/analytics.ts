@@ -3,7 +3,7 @@
 
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { requireAdmin } from "./lib/auth";
+import { requireReadAll } from "./lib/auth";
 
 // ============================================================
 // HELPERS
@@ -71,7 +71,7 @@ export const getFunnelStats = query({
 		endMs: v.number(),
 	},
 	handler: async (ctx, { eventIds, startMs, endMs }) => {
-		await requireAdmin(ctx);
+		await requireReadAll(ctx);
 
 		// Page views — distinct sessionIds
 		const allViews = await ctx.db.query("bookingPageViews").collect();
@@ -135,7 +135,7 @@ export const getCallsCreatedByPeriod = query({
 		),
 	},
 	handler: async (ctx, { eventIds, startMs, endMs, granularity }) => {
-		await requireAdmin(ctx);
+		await requireReadAll(ctx);
 
 		const allBookings = await ctx.db.query("bookings").collect();
 		const filtered = allBookings.filter((b) => {
@@ -176,7 +176,7 @@ export const getOutcomeStats = query({
 		),
 	},
 	handler: async (ctx, { eventIds, startMs, endMs, granularity }) => {
-		await requireAdmin(ctx);
+		await requireReadAll(ctx);
 
 		const gran = granularity ?? "week";
 
@@ -251,7 +251,7 @@ export const getLossReasonStats = query({
 		endMs: v.number(),
 	},
 	handler: async (ctx, { eventIds, startMs, endMs }) => {
-		await requireAdmin(ctx);
+		await requireReadAll(ctx);
 
 		const allBookings = await ctx.db.query("bookings").collect();
 		const lostBookings = allBookings.filter((b) => {
@@ -320,7 +320,7 @@ export const getRevenueStats = query({
 		endMs: v.number(),
 	},
 	handler: async (ctx, { eventIds, startMs, endMs }) => {
-		await requireAdmin(ctx);
+		await requireReadAll(ctx);
 
 		const allBookings = await ctx.db.query("bookings").collect();
 		const wonBookings = allBookings.filter((b) => {
@@ -370,7 +370,7 @@ export const getShowUpStats = query({
 		endMs: v.number(),
 	},
 	handler: async (ctx, { eventIds, startMs, endMs }) => {
-		await requireAdmin(ctx);
+		await requireReadAll(ctx);
 
 		const allBookings = await ctx.db.query("bookings").collect();
 		// Only bookings where the event date is within range

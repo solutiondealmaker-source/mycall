@@ -19,9 +19,8 @@ import {
 } from "@/components/dashboard/kpi-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
+import { canReadAll } from "@/lib/roles";
 
-// Rôles qui voient les stats globales (aligné sur isAdminUser côté serveur).
-const ADMIN_ROLES = new Set(["admin", "ceo", "ops", "head_of_sales"]);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const STATUS_LABEL: Record<string, string> = {
@@ -46,8 +45,9 @@ function fmtDateTime(ms: number): string {
 
 export default function DashboardPage() {
 	const me = useQuery(api.users.getMyProfile);
-	const isAdmin =
-		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
+	// Les stats globales suivent la lecture serveur (canReadAll) : les
+	// observateurs y ont droit, ils ne peuvent simplement rien modifier.
+	const seesStats = canReadAll(me);
 
 	// La fenêtre est figée au montage. Un `Date.now()` recalculé à chaque rendu
 	// produirait des arguments différents à chaque fois : Convex identifie un
@@ -61,10 +61,10 @@ export default function DashboardPage() {
 	// getFunnelStats est réservé aux admins → "skip" pour les autres (pas d'erreur).
 	const funnel = useQuery(
 		api.analytics.getFunnelStats,
-		isAdmin ? range : "skip",
+		seesStats ? range : "skip",
 	);
 
-	const loading = isAdmin && funnel === undefined;
+	const loading = seesStats && funnel === undefined;
 	const fmt = (n: number) => n.toLocaleString("fr-FR");
 
 	const kpis = [
@@ -99,7 +99,7 @@ export default function DashboardPage() {
 
 			<SetupChecklist />
 
-			{isAdmin ? (
+			{seesStats ? (
 				<AnimatedKpiGrid>
 					{kpis.map((kpi) => (
 						<AnimatedKpiItem key={kpi.label}>

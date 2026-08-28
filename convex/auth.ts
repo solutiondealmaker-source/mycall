@@ -11,6 +11,7 @@
 
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
 // Emails autorisés à créer un compte. Lu à chaque tentative d'inscription.
@@ -36,16 +37,27 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 				typeof args.profile.email === "string" ? args.profile.email : undefined;
 			const normalizedEmail = email?.trim().toLowerCase();
 
-			// Gating inscription (H1) : seuls les emails de l'allowlist peuvent
-			// créer un compte. Ferme aussi la course à l'admin (H1b), un email hors
-			// allowlist ne pouvant pas créer le tout premier compte.
+			// Gating inscription (H1) : deux portes d'entrée, et deux seulement.
+			//   1. l'allowlist d'environnement — le ou les fondateurs de l'instance ;
+			//   2. une invitation nominative en attente, émise par un admin.
+			// Tout le reste est refusé. Ferme aussi la course à l'admin (H1b) : un
+			// email hors de ces deux portes ne peut pas créer le tout premier compte.
 			const allowlist = getSignupAllowlist();
-			if (allowlist.size === 0) {
+			const invitation = normalizedEmail
+				? await ctx.runQuery(internal.invitations.findPendingInternal, {
+						email: normalizedEmail,
+					})
+				: null;
+
+			if (allowlist.size === 0 && !invitation) {
 				throw new Error(
-					"Inscription désactivée : SIGNUP_ALLOWED_EMAILS n'est pas défini sur le déploiement.",
+					"Inscription désactivée : aucune invitation en attente et SIGNUP_ALLOWED_EMAILS n'est pas défini sur le déploiement.",
 				);
 			}
-			if (!normalizedEmail || !allowlist.has(normalizedEmail)) {
+			if (
+				!normalizedEmail ||
+				(!allowlist.has(normalizedEmail) && !invitation)
+			) {
 				throw new Error("Cette adresse n'est pas autorisée à créer un compte.");
 			}
 
@@ -57,11 +69,25 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 					? (args.profile.name as string)
 					: undefined;
 
-			return await ctx.db.insert("users", {
+			// Le rôle vient de l'invitation. Le tout premier compte reste admin
+			// quoi qu'il arrive : sans lui, plus personne ne pourrait administrer.
+			const userId = await ctx.db.insert("users", {
 				email,
 				name,
-				...(isFirstUser ? { isAdmin: true, role: "admin" as const } : {}),
+				...(isFirstUser
+					? { isAdmin: true, role: "admin" as const }
+					: invitation
+						? { role: invitation.role }
+						: {}),
 			});
+
+			if (invitation) {
+				await ctx.runMutation(internal.invitations.markAcceptedInternal, {
+					invitationId: invitation._id,
+				});
+			}
+
+			return userId;
 		},
 	},
 });

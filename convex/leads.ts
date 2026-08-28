@@ -13,6 +13,7 @@ import {
 	query,
 } from "./_generated/server";
 import {
+	canReadAll,
 	getAuthenticatedUser,
 	isAdminUser,
 	requireAdmin,
@@ -30,7 +31,10 @@ async function getLeadScope(
 	ctx: QueryCtx | MutationCtx,
 ): Promise<{ userId: Id<"users">; seeAll: boolean }> {
 	const user = await getAuthenticatedUser(ctx);
-	return { userId: user._id, seeAll: isAdminUser(user) };
+	// canReadAll couvre les admins et les observateurs. L'écriture reste gardée
+	// séparément (requireAdmin / ownsLead), un observateur ne peut donc rien
+	// modifier même s'il voit tout.
+	return { userId: user._id, seeAll: canReadAll(user) };
 }
 
 function ownsLead(lead: Doc<"leads">, userId: Id<"users">): boolean {

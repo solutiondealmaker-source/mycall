@@ -21,11 +21,13 @@ import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { internalAction } from "./_generated/server";
 import {
+	BRAND_NAME,
 	bookingConfirmationTemplate,
 	cancellationTemplate,
 	escapeHtml,
 	formatDateFR,
 	hostNotificationTemplate,
+	invitationTemplate,
 	reminderTemplate,
 	rescheduleTemplate,
 } from "./lib/emailTemplates";
@@ -40,13 +42,18 @@ function getResendKey(): string {
 	return key;
 }
 
-const FROM_EMAIL =
-	process.env.RESEND_FROM_EMAIL ?? "iClone <onboarding@resend.dev>";
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 
-const SITE_URL = (process.env.SITE_URL ?? "https://app.iclone.io").replace(
-	/\/$/,
-	"",
-);
+// Base des liens envoyés aux prospects (annulation, reprogrammation) et à
+// l'équipe (accès au CRM). APP_BASE_URL est la variable posée à l'installation
+// de chaque instance ; SITE_URL n'est gardée que par compatibilité. Sans repli
+// sur APP_BASE_URL, une instance qui ne définit que la première enverrait des
+// liens vers un domaine tiers — donc morts.
+const SITE_URL = (
+	process.env.APP_BASE_URL ??
+	process.env.SITE_URL ??
+	"http://localhost:3002"
+).replace(/\/$/, "");
 
 // ============================================================
 // Resend wrapper — never throws
@@ -107,7 +114,8 @@ type LogType =
 	| "email_reminder"
 	| "email_host_notif"
 	| "email_cancellation"
-	| "email_reschedule";
+	| "email_reschedule"
+	| "email_invitation";
 
 async function logEmail(
 	ctx: ActionCtx,
@@ -439,6 +447,80 @@ export const sendReschedule = internalAction({
 			bookingId,
 			leadId: booking.leadId,
 			recipient: booking.prospectEmail,
+			result,
+		});
+	},
+});
+
+// ============================================================
+// sendInvitation — nouveau membre de l'équipe
+// ============================================================
+
+// Libellés des rôles, alignés sur la page Équipe. Le descriptif est repris
+// tel quel dans l'email : la personne invitée doit comprendre ce qu'elle
+// pourra faire avant même de créer son compte.
+const ROLE_COPY: Record<string, { label: string; description: string }> = {
+	closer: {
+		label: "Closer",
+		description:
+			"Mène les rendez-vous et suit les leads qui lui sont assignés.",
+	},
+	setter: {
+		label: "Setter",
+		description: "Qualifie les prospects et prend les rendez-vous.",
+	},
+	coach: {
+		label: "Coach",
+		description: "Accompagne l'équipe sur les leads qui lui sont assignés.",
+	},
+	head_of_sales: {
+		label: "Head of Sales",
+		description: "Pilote l'équipe commerciale, accès complet.",
+	},
+	ceo: { label: "CEO", description: "Accès complet à l'espace de travail." },
+	ops: {
+		label: "Ops",
+		description: "Administre la configuration et les intégrations.",
+	},
+	admin: {
+		label: "Admin",
+		description: "Accès complet, y compris la gestion des membres.",
+	},
+	viewer: {
+		label: "Observateur",
+		description:
+			"Consulte les rendez-vous, les leads et le chiffre d'affaires. Ne peut rien modifier.",
+	},
+};
+
+export const sendInvitation = internalAction({
+	args: {
+		to: v.string(),
+		role: v.string(),
+		inviterName: v.union(v.string(), v.null()),
+	},
+	handler: async (ctx, { to, role, inviterName }) => {
+		const copy = ROLE_COPY[role] ?? {
+			label: role,
+			description: "Accès à l'espace de travail.",
+		};
+		const expiresAt = Date.now() + 14 * 24 * 60 * 60 * 1000;
+
+		const result = await resendSend({
+			to,
+			subject: `Invitation à rejoindre ${BRAND_NAME}`,
+			html: invitationTemplate({
+				inviterName,
+				roleLabel: copy.label,
+				roleDescription: copy.description,
+				signupUrl: `${SITE_URL}/signup`,
+				expiresLabel: formatDateFR(expiresAt, "Europe/Paris"),
+			}),
+		});
+
+		await logEmail(ctx, {
+			type: "email_invitation",
+			recipient: to,
 			result,
 		});
 	},
