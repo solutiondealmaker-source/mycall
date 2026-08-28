@@ -1,10 +1,61 @@
-// Email templates for Phase 12 — iClone transactional emails via Resend.
+// Templates des emails transactionnels, envoyés via Resend.
 //
-// Design: premium blue Endosia (#2563EB / cream #FAFBFE), Inter / system stack,
-// max-width 600px, responsive-safe table layout.
+// Design : Inter / stack système, largeur max 600px, layout en tables (seul
+// format fiable sur Outlook & consorts).
 //
-// Security: all user-controlled strings MUST be passed through escapeHtml()
-// before interpolation to prevent HTML injection in host notification emails.
+// Marque : lue dans l'environnement Convex, jamais écrite en dur. Chaque
+// instance (un business = une instance) porte ainsi sa propre identité sans
+// dupliquer une ligne de template.
+//
+// Sécurité : toute chaîne venant de l'utilisateur DOIT passer par escapeHtml()
+// avant interpolation, sous peine d'injection HTML dans les emails hôte.
+
+// ============================================================
+// Marque — configurable par instance
+// ============================================================
+
+const BRAND_NAME = process.env.BRAND_NAME?.trim() || "Mycall";
+const BRAND_TAGLINE =
+	process.env.BRAND_TAGLINE?.trim() ??
+	"La plateforme de booking pour les équipes commerciales";
+// Couleur d'accent : boutons, liens, logo. Doit rester sombre — le texte des
+// boutons est blanc.
+const BRAND_COLOR = normalizeHex(process.env.BRAND_COLOR) ?? "#192A3B";
+
+// Accepte "#RGB", "#RRGGBB" ou sans dièse ; renvoie null si la valeur est
+// inexploitable, pour retomber sur la couleur par défaut plutôt que de
+// produire du CSS cassé dans un email déjà parti.
+function normalizeHex(input: string | undefined): string | null {
+	const raw = input?.trim().replace(/^#/, "");
+	if (!raw) return null;
+	if (/^[0-9a-fA-F]{3}$/.test(raw)) {
+		const [r, g, b] = raw;
+		return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+	}
+	if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toUpperCase()}`;
+	return null;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+	const n = Number.parseInt(hex.slice(1), 16);
+	return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// Éclaircit une couleur vers le blanc — utilisé pour le dégradé d'en-tête,
+// afin qu'il reste cohérent quelle que soit la couleur de marque choisie.
+function lighten(hex: string, ratio: number): string {
+	const [r, g, b] = hexToRgb(hex);
+	const mix = (c: number) => Math.round(c + (255 - c) * ratio);
+	return `#${[mix(r), mix(g), mix(b)]
+		.map((c) => c.toString(16).padStart(2, "0"))
+		.join("")
+		.toUpperCase()}`;
+}
+
+function brandShadow(alpha: number): string {
+	const [r, g, b] = hexToRgb(BRAND_COLOR);
+	return `rgba(${r},${g},${b},${alpha})`;
+}
 
 // ============================================================
 // Helpers
@@ -40,10 +91,10 @@ function baseLayout(content: string): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>iClone</title>
+  <title>${escapeHtml(BRAND_NAME)}</title>
 </head>
-<body style="margin:0;padding:0;background:#F1F5FE;font-family:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5FE;min-height:100vh">
+<body style="margin:0;padding:0;background:#F4F6F8;font-family:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;min-height:100vh">
     <tr>
       <td align="center" style="padding:40px 16px 56px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
@@ -51,17 +102,17 @@ function baseLayout(content: string): string {
           <!-- Logo header -->
           <tr>
             <td align="center" style="padding:0 0 28px">
-              <span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:-0.04em;color:#2563EB">
-                i<span style="color:#1E40AF">Clone</span>
+              <span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:-0.04em;color:${BRAND_COLOR}">
+                ${escapeHtml(BRAND_NAME)}
               </span>
             </td>
           </tr>
 
           <!-- Card -->
           <tr>
-            <td style="background:#FAFBFE;border-radius:20px;border:1px solid #DBEAFE;box-shadow:0 4px 24px rgba(37,99,235,0.08),0 1px 4px rgba(37,99,235,0.06);overflow:hidden">
-              <!-- Blue top stripe -->
-              <div style="height:4px;background:linear-gradient(90deg,#2563EB 0%,#3B82F6 50%,#93C5FD 100%)"></div>
+            <td style="background:#FFFFFF;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 4px 24px ${brandShadow(0.08)},0 1px 4px ${brandShadow(0.06)};overflow:hidden">
+              <!-- Bandeau de marque -->
+              <div style="height:4px;background:linear-gradient(90deg,${BRAND_COLOR} 0%,${lighten(BRAND_COLOR, 0.25)} 50%,${lighten(BRAND_COLOR, 0.6)} 100%)"></div>
               <!-- Body -->
               <div style="padding:40px 40px 36px">
                 ${content}
@@ -72,8 +123,8 @@ function baseLayout(content: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding:28px 0 0">
-              <p style="margin:0 0 4px;font-size:11px;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase">Powered by iClone</p>
-              <p style="margin:0;font-size:11px;color:#CBD5E1">La plateforme de booking pour les équipes commerciales</p>
+              <p style="margin:0 0 4px;font-size:11px;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase">${escapeHtml(BRAND_NAME)}</p>
+              ${BRAND_TAGLINE ? `<p style="margin:0;font-size:11px;color:#CBD5E1">${escapeHtml(BRAND_TAGLINE)}</p>` : ""}
             </td>
           </tr>
 
@@ -85,27 +136,27 @@ function baseLayout(content: string): string {
 </html>`;
 }
 
-// Blue CTA button
+// Bouton principal, à la couleur de la marque
 function ctaButton(label: string, url: string): string {
 	return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 8px">
   <tr>
     <td align="center">
-      <a href="${url}" style="display:inline-block;background:#2563EB;color:#FFFFFF;padding:13px 32px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.01em;box-shadow:0 4px 14px rgba(37,99,235,0.35)">${label}</a>
+      <a href="${url}" style="display:inline-block;background:${BRAND_COLOR};color:#FFFFFF;padding:13px 32px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.01em;box-shadow:0 4px 14px ${brandShadow(0.35)}">${label}</a>
     </td>
   </tr>
 </table>`;
 }
 
-// Ghost / secondary link
+// Lien secondaire / discret
 function secondaryLink(label: string, url: string): string {
-	return `<a href="${url}" style="color:#2563EB;text-decoration:underline;font-size:13px;font-weight:500">${label}</a>`;
+	return `<a href="${url}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:13px;font-weight:500">${label}</a>`;
 }
 
-// Info block (date, event, etc.)
+// Encadré d'information (date, événement, etc.)
 function infoBlock(lines: string[]): string {
 	return `
-<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:20px 22px;margin:24px 0">
+<div style="background:#F1F5F9;border:1px solid #E2E8F0;border-radius:12px;padding:20px 22px;margin:24px 0">
   ${lines.join("\n  ")}
 </div>`;
 }
@@ -141,7 +192,7 @@ export function bookingConfirmationTemplate(
 	const meetSection = meetUrl
 		? `<p style="margin:16px 0 0;font-size:14px;color:#64748B;line-height:1.6">
         <strong style="color:#1E293B">Lien de réunion&nbsp;:</strong><br>
-        <a href="${meetUrl}" style="color:#2563EB;word-break:break-all">${meetUrl}</a>
+        <a href="${meetUrl}" style="color:${BRAND_COLOR};word-break:break-all">${meetUrl}</a>
       </p>`
 		: `<p style="margin:16px 0 0;font-size:13px;color:#94A3B8;line-height:1.6">Le lien de réunion vous sera transmis avant le rendez-vous.</p>`;
 
@@ -203,7 +254,7 @@ export function hostNotificationTemplate(args: HostNotificationArgs): string {
 	const meetSection = meetUrl
 		? `<p style="margin:12px 0 0;font-size:13px;color:#64748B">
         <strong style="color:#1E293B">Meet&nbsp;:</strong>
-        <a href="${meetUrl}" style="color:#2563EB;margin-left:6px">${meetUrl}</a>
+        <a href="${meetUrl}" style="color:${BRAND_COLOR};margin-left:6px">${meetUrl}</a>
       </p>`
 		: "";
 
@@ -242,7 +293,7 @@ ${infoBlock([
 
 ${answersSection}
 
-${ctaButton("Ouvrir dans iClone", dashboardUrl)}`;
+${ctaButton(`Ouvrir dans ${BRAND_NAME}`, dashboardUrl)}`;
 
 	return baseLayout(content);
 }
@@ -370,7 +421,7 @@ export function rescheduleTemplate(args: RescheduleArgs): string {
 	const meetSection = meetUrl
 		? `<p style="margin:12px 0 0;font-size:13px;color:#64748B">
         <strong style="color:#1E293B">Meet&nbsp;:</strong>
-        <a href="${meetUrl}" style="color:#2563EB;margin-left:6px">${meetUrl}</a>
+        <a href="${meetUrl}" style="color:${BRAND_COLOR};margin-left:6px">${meetUrl}</a>
       </p>`
 		: "";
 
