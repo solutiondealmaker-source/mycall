@@ -10,6 +10,7 @@ import {
 	TrendingUp,
 	Users,
 } from "lucide-react";
+import { useMemo } from "react";
 import { api } from "@/../convex/_generated/api";
 import {
 	AnimatedKpiGrid,
@@ -48,11 +49,19 @@ export default function DashboardPage() {
 	const isAdmin =
 		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
 
-	const now = Date.now();
+	// La fenêtre est figée au montage. Un `Date.now()` recalculé à chaque rendu
+	// produirait des arguments différents à chaque fois : Convex identifie un
+	// abonnement par ses arguments, donc chaque rendu ouvrirait un nouvel
+	// abonnement, qui déclenche un rendu, qui en ouvre un autre… (boucle).
+	const range = useMemo(() => {
+		const now = Date.now();
+		return { startMs: now - 30 * MS_PER_DAY, endMs: now };
+	}, []);
+
 	// getFunnelStats est réservé aux admins → "skip" pour les autres (pas d'erreur).
 	const funnel = useQuery(
 		api.analytics.getFunnelStats,
-		isAdmin ? { startMs: now - 30 * MS_PER_DAY, endMs: now } : "skip",
+		isAdmin ? range : "skip",
 	);
 
 	const loading = isAdmin && funnel === undefined;

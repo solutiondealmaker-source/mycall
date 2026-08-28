@@ -195,7 +195,11 @@ export const applyPaymentSucceededInternal = internalMutation({
 			lastInteractionAt: now,
 		});
 
-		const authorId = (lead as { closerUserId?: unknown }).closerUserId;
+		// Le closer en priorité ; à défaut le setter — sans auteur, pas de note,
+		// donc plus de garde d'idempotence sur les renvois Stripe.
+		const authorId =
+			(lead as { closerUserId?: unknown }).closerUserId ??
+			(lead as { setterUserId?: unknown }).setterUserId;
 		if (authorId) {
 			await ctx.db.insert("leadNotes", {
 				leadId: leadId as never,
@@ -203,6 +207,30 @@ export const applyPaymentSucceededInternal = internalMutation({
 				authorUserId: authorId as never,
 				createdAt: now,
 			});
+		}
+
+		// Répercuter l'issue sur le rendez-vous. Indispensable : le chiffre
+		// d'affaires d'Analytics se calcule sur les bookings gagnés
+		// (analytics.ts → getRevenueStats), jamais sur les leads. Sans ce miroir,
+		// un paiement encaissé laisserait le CA à 0.
+		const bookings = await ctx.db
+			.query("bookings")
+			.withIndex("by_leadId_startTime", (q) => q.eq("leadId", leadId as never))
+			.collect();
+		if (bookings.length > 0) {
+			// Le RDV le plus récent déjà passé ; à défaut, le plus récent tout court.
+			const past = bookings.filter((b) => b.startTime <= now);
+			const target = (past.length > 0 ? past : bookings).reduce((a, b) =>
+				b.startTime > a.startTime ? b : a,
+			);
+			// On ne réécrit pas un RDV déjà marqué gagné : le montant saisi par le
+			// closer fait foi et le CA le compte déjà.
+			if (target.issue !== "gagne") {
+				await ctx.db.patch(target._id, {
+					issue: "gagne" as const,
+					issueAmountCents: amountCents,
+				});
+			}
 		}
 		return { ok: true, reason: "applied" };
 	},
