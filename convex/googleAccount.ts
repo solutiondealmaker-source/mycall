@@ -95,6 +95,7 @@ async function getAccountsSummary(
 		_id: Id<"userGoogleAccounts">;
 		googleEmail: string;
 		connectedAt: number;
+		invalidSince?: number;
 	}>
 > {
 	const rows = await ctx.db
@@ -105,6 +106,7 @@ async function getAccountsSummary(
 		.map((r) => ({
 			_id: r._id,
 			googleEmail: r.googleEmail,
+			invalidSince: r.invalidSince,
 			connectedAt: r.connectedAt,
 		}))
 		.sort((a, b) => a.connectedAt - b.connectedAt);
@@ -212,6 +214,25 @@ export const patchAccountTokensInternal = internalMutation({
 			accessToken,
 			tokenExpiryMs,
 			lastRefreshedAt: Date.now(),
+			// Un refresh réussi lève le drapeau d'invalidité.
+			invalidSince: undefined,
+			invalidReason: undefined,
+		});
+	},
+});
+
+// Marque une connexion Google comme morte (refresh token révoqué/expiré).
+export const markAccountInvalidInternal = internalMutation({
+	args: {
+		accountId: v.id("userGoogleAccounts"),
+		reason: v.string(),
+	},
+	handler: async (ctx, { accountId, reason }) => {
+		const acc = await ctx.db.get(accountId);
+		if (!acc || acc.invalidSince) return; // déjà marqué
+		await ctx.db.patch(accountId, {
+			invalidSince: Date.now(),
+			invalidReason: reason,
 		});
 	},
 });

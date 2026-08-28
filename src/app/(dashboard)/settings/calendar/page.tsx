@@ -28,6 +28,8 @@ type AccountSummary = {
 	_id: Id<"userGoogleAccounts">;
 	googleEmail: string;
 	connectedAt: number;
+	/** Renseigné si Google a révoqué l'accès → reconnexion nécessaire. */
+	invalidSince?: number;
 };
 
 // ─── Toast simple ─────────────────────────────────────────────────────────────
@@ -81,6 +83,9 @@ export default function CalendarSettingsPage() {
 
 	const isLoading = accounts === undefined || settings === undefined;
 	const hasAccounts = (accounts?.length ?? 0) > 0;
+	// Google a révoqué le refresh token : "Connecté" ne veut plus rien dire,
+	// il faut reconnecter pour que la synchro d'agenda reparte.
+	const expiredAccounts = (accounts ?? []).filter((a) => a.invalidSince);
 
 	// Effacer le toast après 5s
 	useEffect(() => {
@@ -96,6 +101,30 @@ export default function CalendarSettingsPage() {
 				description="Connectez vos comptes Google pour créer automatiquement des événements Google Meet lors des réservations."
 				actions={<AddGoogleButton />}
 			/>
+
+			{/* Connexion Google expirée — bandeau permanent tant que non résolu */}
+			{expiredAccounts.length > 0 && (
+				<div
+					className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius-sm)] mb-6 text-sm bg-[var(--destructive-soft)] text-[var(--destructive)] ring-1 ring-[var(--destructive)]"
+					role="alert"
+				>
+					<AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+					<div>
+						<p className="font-semibold">
+							Connexion Google expirée — la synchronisation est arrêtée
+						</p>
+						<p className="mt-0.5 opacity-90">
+							Google a révoqué l'accès pour{" "}
+							{expiredAccounts.map((a) => a.googleEmail).join(", ")}. Les
+							nouveaux rendez-vous{" "}
+							<strong>ne sont plus ajoutés à ton agenda</strong> et n'ont plus
+							de lien Meet (ils restent enregistrés dans le CRM). Clique sur «
+							Déconnecter » puis reconnecte le compte pour rétablir la
+							synchronisation.
+						</p>
+					</div>
+				</div>
+			)}
 
 			{/* Toast notification */}
 			<AnimatePresence>

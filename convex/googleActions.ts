@@ -178,6 +178,15 @@ async function refreshAccountToken(
 	});
 	if (!res.ok) {
 		const err = await res.text();
+		// `invalid_grant` = refresh token révoqué/expiré : la reconnexion est la
+		// seule issue. On le marque pour que l'UI puisse alerter l'utilisateur
+		// au lieu de continuer à afficher "Connecté" avec une synchro morte.
+		if (err.includes("invalid_grant")) {
+			await ctx.runMutation(internal.googleAccount.markAccountInvalidInternal, {
+				accountId,
+				reason: "invalid_grant",
+			});
+		}
 		throw new Error(`Google refresh failed: ${err}`);
 	}
 	const tok = (await res.json()) as GoogleTokenResponse;

@@ -391,6 +391,10 @@ export default defineSchema({
 		scope: v.string(),
 		connectedAt: v.number(),
 		lastRefreshedAt: v.optional(v.number()),
+		// Renseigné quand Google refuse le refresh token (invalid_grant) :
+		// la connexion est morte tant que l'utilisateur ne reconnecte pas.
+		invalidSince: v.optional(v.number()),
+		invalidReason: v.optional(v.string()),
 	})
 		.index("by_userId", ["userId"])
 		.index("by_userId_googleSub", ["userId", "googleSub"]),
