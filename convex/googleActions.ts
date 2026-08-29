@@ -497,7 +497,15 @@ async function createGoogleEventForBooking(
 	};
 
 	if (isGoogleMeet) {
-		// URL critique : ?conferenceDataVersion=1&sendUpdates=all (cf discovery §4)
+		// conferenceDataVersion=1 est requis pour que Google génère le lien Meet.
+		//
+		// sendUpdates=none est délibéré : c'est notre email de marque qui prévient
+		// le prospect. Avec "all", Google envoie l'invitation au nom du compte
+		// Google connecté — une adresse que le prospect ne reconnaît pas, que Gmail
+		// étiquette « expéditeur inconnu », et qui n'est donc pas ajoutée
+		// automatiquement à son agenda. Le prospect reste participant de
+		// l'événement : il garde son accès au Meet, il n'est simplement pas
+		// notifié par Google.
 		eventPayload.conferenceData = {
 			createRequest: {
 				requestId: `iclone-${bookingId}`, // clé idempotency 24h
@@ -509,8 +517,8 @@ async function createGoogleEventForBooking(
 	}
 
 	const url = isGoogleMeet
-		? `${GOOGLE_CAL_BASE}/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=all`
-		: `${GOOGLE_CAL_BASE}/calendars/${calendarId}/events?sendUpdates=all`;
+		? `${GOOGLE_CAL_BASE}/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=none`
+		: `${GOOGLE_CAL_BASE}/calendars/${calendarId}/events?sendUpdates=none`;
 
 	const res = await fetch(url, {
 		method: "POST",
@@ -602,7 +610,7 @@ export const updateGoogleEventForBooking = internalAction({
 		const calendarId = encodeURIComponent(booking.googleCalendarId);
 
 		const res = await fetch(
-			`${GOOGLE_CAL_BASE}/calendars/${calendarId}/events/${booking.googleEventId}?sendUpdates=all`,
+			`${GOOGLE_CAL_BASE}/calendars/${calendarId}/events/${booking.googleEventId}?sendUpdates=none`,
 			{
 				method: "PATCH",
 				headers: {
@@ -646,7 +654,7 @@ export const deleteGoogleEventForBooking = internalAction({
 		if (!token) return;
 		const calendarId = encodeURIComponent(booking.googleCalendarId);
 		const res = await fetch(
-			`${GOOGLE_CAL_BASE}/calendars/${calendarId}/events/${booking.googleEventId}?sendUpdates=all`,
+			`${GOOGLE_CAL_BASE}/calendars/${calendarId}/events/${booking.googleEventId}?sendUpdates=none`,
 			{
 				method: "DELETE",
 				headers: { Authorization: `Bearer ${token}` },

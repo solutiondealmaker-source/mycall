@@ -28,6 +28,7 @@ import type * as leads from "../leads.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_disqualification from "../lib/disqualification.js";
 import type * as lib_emailTemplates from "../lib/emailTemplates.js";
+import type * as lib_ics from "../lib/ics.js";
 import type * as lib_leadMatch from "../lib/leadMatch.js";
 import type * as lib_slotComputation from "../lib/slotComputation.js";
 import type * as lib_tz from "../lib/tz.js";
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/disqualification": typeof lib_disqualification;
   "lib/emailTemplates": typeof lib_emailTemplates;
+  "lib/ics": typeof lib_ics;
   "lib/leadMatch": typeof lib_leadMatch;
   "lib/slotComputation": typeof lib_slotComputation;
   "lib/tz": typeof lib_tz;

@@ -32,6 +32,7 @@ import {
 	reminderTemplate,
 	rescheduleTemplate,
 } from "./lib/emailTemplates";
+import { buildIcs } from "./lib/ics";
 
 // ============================================================
 // Config
@@ -70,6 +71,8 @@ async function resendSend(payload: {
 	to: string;
 	subject: string;
 	html: string;
+	// Pièces jointes (le .ics du rendez-vous) — contenu encodé en base64.
+	attachments?: Array<{ filename: string; content: string }>;
 }): Promise<ResendResult> {
 	try {
 		const res = await fetch("https://api.resend.com/emails", {
@@ -83,6 +86,9 @@ async function resendSend(payload: {
 				to: [payload.to],
 				subject: payload.subject,
 				html: payload.html,
+				...(payload.attachments?.length
+					? { attachments: payload.attachments }
+					: {}),
 			}),
 		});
 
@@ -104,6 +110,44 @@ async function resendSend(payload: {
 		console.error(`[emails] Resend fetch exception: ${msg} | to=${payload.to}`);
 		return { ok: false, error: msg.slice(0, 512) };
 	}
+}
+
+// ============================================================
+// Pièce jointe .ics
+// ============================================================
+
+// Construit la pièce jointe calendrier d'un rendez-vous. Encodée en base64,
+// comme l'attend l'API Resend.
+function icsAttachment(
+	booking: {
+		_id: string;
+		startTime: number;
+		endTime: number;
+		googleMeetUrl?: string | null;
+	},
+	eventName: string,
+	hostName: string | null,
+): { filename: string; content: string } {
+	const meetLine = booking.googleMeetUrl
+		? `Lien de réunion : ${booking.googleMeetUrl}`
+		: "Le lien de réunion vous sera transmis avant le rendez-vous.";
+
+	const ics = buildIcs({
+		// UID stable : réimporter le fichier met à jour l'entrée au lieu d'en
+		// créer une seconde.
+		uid: `${booking._id}@${BRAND_NAME.toLowerCase().replace(/\s+/g, "-")}`,
+		startMs: booking.startTime,
+		endMs: booking.endTime,
+		title: hostName ? `${eventName} — ${hostName}` : eventName,
+		description: meetLine,
+		location: booking.googleMeetUrl ?? undefined,
+		organizerName: BRAND_NAME,
+	});
+
+	return {
+		filename: "rendez-vous.ics",
+		content: Buffer.from(ics, "utf8").toString("base64"),
+	};
 }
 
 // ============================================================
@@ -162,13 +206,12 @@ export const sendBookingConfirmation = internalAction({
 		}
 		if (!booking.prospectEmail) return;
 
-		// Skip if Google already sent an invite (Google invite carries Meet link + context).
-		if (booking.googleEventId && booking.googleCalendarId) {
-			console.log(
-				`[emails] sendBookingConfirmation: skipped — Google invite sent for ${bookingId}`,
-			);
-			return;
-		}
+		// Cet email part TOUJOURS, même quand un événement Google existe. Il a
+		// longtemps été supprimé dans ce cas, en supposant que l'invitation Google
+		// suffisait — mais elle part au nom du compte Google connecté, jamais au
+		// nom du business. Le prospect ne voyait donc jamais la marque, et Gmail
+		// étiquetait l'expéditeur comme inconnu. Google ne notifie plus le
+		// prospect (sendUpdates=none) : c'est ce message qui le prévient.
 
 		const event = await ctx.runQuery(internal.emailsInternal.getEventForEmail, {
 			eventId: booking.eventId,
@@ -196,6 +239,7 @@ export const sendBookingConfirmation = internalAction({
 			to: booking.prospectEmail,
 			subject: `Confirmation — ${event.name} le ${dateStr}`,
 			html,
+			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
 		});
 
 		await logEmail(ctx, {
@@ -442,6 +486,9 @@ export const sendReschedule = internalAction({
 			to: booking.prospectEmail,
 			subject: `Replanification — ${event.name} le ${newDateStr}`,
 			html,
+			// Même UID que la confirmation : l'agenda du prospect déplace l'entrée
+			// existante au lieu d'en créer une seconde.
+			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
 		});
 
 		await logEmail(ctx, {
