@@ -23,7 +23,8 @@ crons.interval(
 
 // Check for bookings with startTime in [now+1h45, now+2h15] and send reminder.
 // Runs every 5 min to stay within the 30-min reminder window.
-// TODO Phase 12: implement internal.reminders.sendBookingReminders action.
+// Délègue à notifyDispatch.processReminderQueue, qui estampille reminderSentAt
+// puis planifie l.envoi — la garde d.idempotence vit là-bas.
 crons.interval(
 	"sendReminders",
 	{ minutes: 5 },

@@ -318,6 +318,29 @@ export const createPaymentLink = action({
 		);
 		if (!me) throw new Error("Non authentifié");
 
+		// Générer un lien de paiement engage le compte Stripe du business : c'est
+		// une écriture, pas une consultation. L'interface ne propose le bouton
+		// qu'aux admins, mais rien n'empêchait un appel direct — un observateur
+		// inclus, alors que son rôle promet l'inverse.
+		if (me.role === "viewer") {
+			throw new Error("Ton rôle est en lecture seule.");
+		}
+		const privileged =
+			me.isAdmin === true ||
+			["admin", "ceo", "ops", "head_of_sales"].includes(me.role ?? "");
+		if (!privileged) {
+			// Un closer peut encaisser, mais seulement sur ses propres leads.
+			const lead = await ctx.runQuery(internal.stripe.getLeadOwnersInternal, {
+				leadId,
+			});
+			if (
+				!lead ||
+				(lead.closerUserId !== me._id && lead.setterUserId !== me._id)
+			) {
+				throw new Error("Ce lead ne t'est pas assigné.");
+			}
+		}
+
 		if (!Number.isFinite(amountCents) || amountCents < 100) {
 			throw new Error("Montant invalide (minimum 1 €).");
 		}
@@ -364,5 +387,19 @@ export const createPaymentLink = action({
 		});
 
 		return { url };
+	},
+});
+
+// Propriétaires d'un lead — utilisé par createPaymentLink pour vérifier qu'un
+// closer n'encaisse que sur ses propres leads. Projeté : rien d'autre ne sort.
+export const getLeadOwnersInternal = internalQuery({
+	args: { leadId: v.id("leads") },
+	handler: async (ctx, { leadId }) => {
+		const lead = await ctx.db.get(leadId);
+		if (!lead) return null;
+		return {
+			closerUserId: lead.closerUserId ?? null,
+			setterUserId: lead.setterUserId ?? null,
+		};
 	},
 });

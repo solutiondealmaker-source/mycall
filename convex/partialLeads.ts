@@ -206,7 +206,7 @@ export const capturePartialLead = mutation({
 // Runs 10 min after first capture. If the partialLead has no bookingId yet
 // (prospect never completed the form) flag abandonedNotifiedAt.
 //
-// TODO Phase 12: hook into email/Telegram notification dispatch here.
+// Prévient ensuite les admins par email (emails.sendAbandonedLead).
 export const checkPartialLeadAbandoned = internalMutation({
 	args: { partialLeadId: v.id("partialLeads") },
 	handler: async (ctx, { partialLeadId }) => {

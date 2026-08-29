@@ -9,10 +9,11 @@
 //   Internal:         reserveBookingInternal, finalizeBookingInternal,
 //                     rollbackBookingInternal, cleanupOrphanBookingsInternal
 //
-// Google Calendar sync (Phase 9):
-//   V1 path: googleSyncStatus = "na" — no Google API calls.
-//   Phase 9 will add the transactional reserve/finalize/rollback trio with real
-//   Google API integration. All TODO markers are tagged // TODO Phase 9.
+// Synchronisation Google Calendar :
+//   Un booking est réservé puis finalisé (reserve/finalize) autour de l'appel à
+//   l'API Google. Sans agenda connecté, googleSyncStatus reste "na" et le
+//   rendez-vous est enregistré quand même — un agenda absent ne doit jamais
+//   faire perdre une réservation.
 
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -1156,8 +1157,9 @@ export const createBookingChecked = action({
 	},
 });
 
-// TODO Phase 9: Two-phase reserve — inserts booking with googleSyncStatus="pending".
-// Does NOT touch the lead. Called by the action BEFORE the Google API call.
+// Réservation en deux temps, premier temps : insère le booking en
+// googleSyncStatus="pending" sans toucher au lead. Appelée par l.action AVANT
+// l.appel à l.API Google.
 export const reserveBookingInternal = internalMutation({
 	args: {
 		slug: v.string(),
@@ -1222,7 +1224,8 @@ export const reserveBookingInternal = internalMutation({
 	},
 });
 
-// TODO Phase 9: Patch booking → synced + commit lead after Google success.
+// Second temps : passe le booking en "synced" et valide le lead, une fois
+// Google confirmé.
 export const finalizeBookingInternal = internalMutation({
 	args: {
 		bookingId: v.id("bookings"),
@@ -1409,9 +1412,9 @@ export const rescheduleByToken = mutation({
 			hostId: resolved.hostId,
 			rescheduledFromBookingId: booking._id,
 			rescheduledAt: now,
-			// TODO Phase 9: reset googleSyncStatus to "pending" and schedule
-			// Google event update/recreate based on hostChanged.
-			// googleSyncStatus: hostChanged ? "pending" : booking.googleSyncStatus,
+			// googleSyncStatus est laissé tel quel : la mise à jour de l.événement
+			// Google est planifiée plus bas (updateGoogleEventForBooking), qui gère
+			// aussi le cas d.un changement d.hôte.
 		});
 
 		if (booking.leadId) {

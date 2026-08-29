@@ -1,15 +1,21 @@
 import { cn } from "@/lib/utils";
 
-// Palette de 8 gradients déterministes (brand bleu Endosia)
+// Huit dégradés déterministes : deux personnes différentes gardent des
+// pastilles différentes, et la même personne garde toujours la sienne.
+//
+// Accordés au marine de la marque et au fond crème. La version précédente
+// gardait le bleu vif d'origine, resté en place après le rebranding : sur
+// crème, ces bleus électriques étaient les seules taches froides vives de
+// l'interface.
 const GRADIENTS = [
-	"linear-gradient(135deg, #2563EB 0%, #3B82F6 100%)",
-	"linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)",
-	"linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%)",
-	"linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%)",
-	"linear-gradient(135deg, #2563EB 0%, #818CF8 100%)",
-	"linear-gradient(135deg, #0EA5E9 0%, #2563EB 100%)",
-	"linear-gradient(135deg, #6366F1 0%, #3B82F6 100%)",
-	"linear-gradient(135deg, #2563EB 0%, #10B981 100%)",
+	"linear-gradient(135deg, #192A3B 0%, #33506E 100%)",
+	"linear-gradient(135deg, #24384D 0%, #4A6C90 100%)",
+	"linear-gradient(135deg, #2E4A63 0%, #5C7FA3 100%)",
+	"linear-gradient(135deg, #1F3348 0%, #3F6284 100%)",
+	"linear-gradient(135deg, #33506E 0%, #6E8FAF 100%)",
+	"linear-gradient(135deg, #1C2E42 0%, #46688B 100%)",
+	"linear-gradient(135deg, #2A4560 0%, #7D9AB8 100%)",
+	"linear-gradient(135deg, #223A52 0%, #52789C 100%)",
 ];
 
 function hashName(name: string): number {
