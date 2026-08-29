@@ -93,30 +93,36 @@
    :ROOT — Light mode tokens
 ───────────────────────────────────────────── */
 :root {
-  /* ── Backgrounds ── */
-  --background:     #FAFBFE;
-  --cream:          #FAFBFE;
-  --surface:        #FFFFFF;
-  --surface-raised: #F6F7FB;
-  --surface-muted:  #EEF0F6;
+  /* ── Backgrounds — crème chaud ──
+     Le fond porte une pointe de jaune, les cartes un cran plus clair que lui :
+     sans cet écart, une carte blanche sur crème se lit comme une tache froide. */
+  --background:     #F8F4EC;
+  --cream:          #F8F4EC;
+  --surface:        #FFFDF8;
+  --surface-raised: #F2EDE2;
+  --surface-muted:  #EAE3D5;
 
-  /* ── Brand (Mycall navy) ── */
+  /* ── Brand (Mycall navy) ──
+     Le marine reste l'unique note froide de la palette. Sur crème il tranche
+     nettement, et c'est la couleur déjà portée par les emails. */
   --brand:       #192A3B;
   --brand-bright: #28435E;
   --brand-light: #3C5F82;
-  --brand-soft:  rgba(25, 42, 59, 0.08);
+  --brand-soft:  rgba(25, 42, 59, 0.07);
   --brand-glow:  rgba(25, 42, 59, 0.18);
 
-  /* ── Ink ── */
-  --ink:        #0F172A;
-  --ink-soft:   #1E293B;
-  --ink-muted:  #64748B;
-  --ink-ghost:  #94A3B8;
+  /* ── Ink — noirs chauds, accordés au fond ──
+     Un gris bleuté sur crème donne un rendu sale ; ces valeurs tirent vers le
+     brun, comme une encre sur papier. */
+  --ink:        #201C16;
+  --ink-soft:   #3A342B;
+  --ink-muted:  #6E665A;
+  --ink-ghost:  #A09585;
 
   /* ── Borders ── */
-  --border:        rgba(15, 23, 42, 0.08);
-  --border-strong: rgba(15, 23, 42, 0.14);
-  --input:         rgba(15, 23, 42, 0.10);
+  --border:        rgba(32, 28, 22, 0.10);
+  --border-strong: rgba(32, 28, 22, 0.16);
+  --input:         rgba(32, 28, 22, 0.13);
 
   /* ── Semantic ── */
   --success:          #10B981;
@@ -126,16 +132,16 @@
   --destructive:      #F43F5E;
   --destructive-soft: rgba(244, 63, 94, 0.08);
 
-  /* ── Shadows ── */
-  --shadow-card:  0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.04);
-  --shadow-float: 0 8px 32px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.06);
-  --shadow-pop:   0 16px 48px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.08);
+  /* ── Shadows — teintées chaud, sinon elles grisent le crème ── */
+  --shadow-card:  0 1px 2px rgba(60, 45, 25, 0.05), 0 4px 16px rgba(60, 45, 25, 0.05);
+  --shadow-float: 0 8px 32px rgba(60, 45, 25, 0.10), 0 1px 4px rgba(60, 45, 25, 0.07);
+  --shadow-pop:   0 16px 48px rgba(60, 45, 25, 0.14), 0 4px 8px rgba(60, 45, 25, 0.09);
   --shadow-brand: 0 4px 20px rgba(25, 42, 59, 0.22);
 
   /* ── Gradients ── */
   --grad-brand:      linear-gradient(135deg, #192A3B 0%, #28435E 100%);
   --grad-brand-soft: linear-gradient(135deg, rgba(25, 42, 59, 0.06) 0%, rgba(60, 95, 130, 0.03) 100%);
-  --grad-cream:      linear-gradient(180deg, #FAFBFE 0%, #F6F7FB 100%);
+  --grad-cream:      linear-gradient(180deg, #FBF8F1 0%, #F2EDE2 100%);
   --grad-success:    linear-gradient(135deg, rgba(16, 185, 129, 0.10) 0%, rgba(16, 185, 129, 0.04) 100%);
 
   /* ── Radius base (shadcn compat) ── */
@@ -166,7 +172,7 @@
   --chart-2: #3C5F82;
   --chart-3: #10B981;
   --chart-4: #F59E0B;
-  --chart-5: #94A3B8;
+  --chart-5: #A09585;
 
   /* ── Sidebar → tokens Endosia ── */
   --sidebar:                    var(--surface);
@@ -183,30 +189,32 @@
    .DARK — Dark mode overrides
 ───────────────────────────────────────────── */
 .dark {
-  /* ── Backgrounds ── */
-  --background:     #0B0F1A;
-  --cream:          #0B0F1A;
-  --surface:        #111827;
-  --surface-raised: #1A2133;
-  --surface-muted:  #1E293B;
+  /* ── Backgrounds — sombres chauds ──
+     Le mode clair est passé au crème ; garder ici un noir bleuté ferait deux
+     applications différentes selon l'heure. Ces fonds tirent vers le brun. */
+  --background:     #17140F;
+  --cream:          #17140F;
+  --surface:        #1F1B15;
+  --surface-raised: #29241C;
+  --surface-muted:  #332D23;
 
   /* ── Brand (Mycall navy — éclairci pour rester lisible en dark) ── */
-  --brand:       #5B7FA6;
-  --brand-bright: #7098BF;
-  --brand-light: #93B4D6;
-  --brand-soft:  rgba(91, 127, 166, 0.14);
-  --brand-glow:  rgba(91, 127, 166, 0.26);
+  --brand:       #7FA3C9;
+  --brand-bright: #96B6D8;
+  --brand-light: #B3CCE6;
+  --brand-soft:  rgba(127, 163, 201, 0.14);
+  --brand-glow:  rgba(127, 163, 201, 0.26);
 
-  /* ── Ink inversé ── */
-  --ink:        #F8FAFC;
-  --ink-soft:   #E2E8F0;
-  --ink-muted:  #94A3B8;
-  --ink-ghost:  #475569;
+  /* ── Ink inversé, chaud ── */
+  --ink:        #F6F1E7;
+  --ink-soft:   #E0D8C9;
+  --ink-muted:  #A29886;
+  --ink-ghost:  #6B6355;
 
   /* ── Borders ── */
-  --border:        rgba(248, 250, 252, 0.07);
-  --border-strong: rgba(248, 250, 252, 0.12);
-  --input:         rgba(248, 250, 252, 0.10);
+  --border:        rgba(246, 241, 231, 0.08);
+  --border-strong: rgba(246, 241, 231, 0.14);
+  --input:         rgba(246, 241, 231, 0.11);
 
   /* ── Semantic ── */
   --success:          #34D399;
@@ -225,7 +233,7 @@
   /* ── Gradients dark ── */
   --grad-brand:      linear-gradient(135deg, #5B7FA6 0%, #7098BF 100%);
   --grad-brand-soft: linear-gradient(135deg, rgba(91, 127, 166, 0.10) 0%, rgba(147, 180, 214, 0.05) 100%);
-  --grad-cream:      linear-gradient(180deg, #0B0F1A 0%, #111827 100%);
+  --grad-cream:      linear-gradient(180deg, #17140F 0%, #1F1B15 100%);
   --grad-success:    linear-gradient(135deg, rgba(52, 211, 153, 0.12) 0%, rgba(52, 211, 153, 0.05) 100%);
 
   /* ── Shadcn compat remapping ── */
@@ -235,7 +243,7 @@
   --popover:                var(--surface);
   --popover-foreground:     var(--ink);
   --primary:                var(--brand);
-  --primary-foreground:     #0B0F1A;
+  --primary-foreground:     #17140F;
   --secondary:              var(--surface-raised);
   --secondary-foreground:   var(--ink);
   --muted:                  var(--surface-raised);
@@ -255,7 +263,7 @@
   --sidebar:                    var(--surface);
   --sidebar-foreground:         var(--ink);
   --sidebar-primary:            var(--brand);
-  --sidebar-primary-foreground: #0B0F1A;
+  --sidebar-primary-foreground: #17140F;
   --sidebar-accent:             var(--brand-soft);
   --sidebar-accent-foreground:  var(--brand-light);
   --sidebar-border:             var(--border);
@@ -378,8 +386,8 @@
   height: 800px;
   background: radial-gradient(
     circle,
-    rgba(25, 42, 59, 0.14) 0%,
-    rgba(60, 95, 130, 0.06) 40%,
+    rgba(196, 160, 96, 0.16) 0%,
+    rgba(178, 138, 74, 0.07) 40%,
     transparent 70%
   );
   top: -25%;
@@ -400,8 +408,8 @@
   height: 650px;
   background: radial-gradient(
     circle,
-    rgba(60, 95, 130, 0.10) 0%,
-    rgba(25, 42, 59, 0.04) 40%,
+    rgba(205, 172, 112, 0.13) 0%,
+    rgba(168, 132, 72, 0.05) 40%,
     transparent 70%
   );
   bottom: -20%;
@@ -422,8 +430,8 @@
   height: 400px;
   background: radial-gradient(
     circle,
-    rgba(25, 42, 59, 0.08) 0%,
-    rgba(60, 95, 130, 0.03) 50%,
+    rgba(192, 154, 90, 0.10) 0%,
+    rgba(170, 134, 76, 0.04) 50%,
     transparent 70%
   );
   top: 30%;
