@@ -490,3 +490,50 @@ ${ctaButton("Créer mon compte", signupUrl)}
 
 	return baseLayout(content);
 }
+
+// ============================================================
+// 7. Lead abandonné — alerte interne à l'équipe
+// ============================================================
+
+export interface AbandonedLeadArgs {
+	prospectName: string;
+	prospectPhone: string | null;
+	prospectEmail: string | null;
+	eventName: string;
+	capturedAtLabel: string;
+	crmUrl: string;
+}
+
+export function abandonedLeadTemplate(args: AbandonedLeadArgs): string {
+	const {
+		prospectName,
+		prospectPhone,
+		prospectEmail,
+		eventName,
+		capturedAtLabel,
+		crmUrl,
+	} = args;
+
+	const contactLines = [
+		prospectPhone
+			? `<p style="margin:4px 0 0;font-size:14px;color:#475569">${escapeHtml(prospectPhone)}</p>`
+			: "",
+		prospectEmail
+			? `<p style="margin:2px 0 0;font-size:13px;color:#64748B">${escapeHtml(prospectEmail)}</p>`
+			: "",
+	].filter(Boolean);
+
+	const content = `
+<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Formulaire abandonné</h1>
+<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">Ce prospect a laissé ses coordonnées sans réserver de créneau. Il est encore chaud — un appel maintenant a toutes ses chances.</p>
+
+${infoBlock([
+	`<p style="margin:0;font-size:16px;font-weight:600;color:#1E293B">${escapeHtml(prospectName)}</p>`,
+	...contactLines,
+	`<p style="margin:10px 0 0;font-size:13px;color:#64748B"><strong style="color:#1E293B">${escapeHtml(eventName)}</strong> — ${escapeHtml(capturedAtLabel)}</p>`,
+])}
+
+${ctaButton("Ouvrir le CRM", crmUrl)}`;
+
+	return baseLayout(content);
+}

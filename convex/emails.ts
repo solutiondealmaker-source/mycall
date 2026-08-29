@@ -21,6 +21,7 @@ import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { internalAction } from "./_generated/server";
 import {
+	abandonedLeadTemplate,
 	BRAND_NAME,
 	bookingConfirmationTemplate,
 	cancellationTemplate,
@@ -115,7 +116,8 @@ type LogType =
 	| "email_host_notif"
 	| "email_cancellation"
 	| "email_reschedule"
-	| "email_invitation";
+	| "email_invitation"
+	| "email_abandoned_lead";
 
 async function logEmail(
 	ctx: ActionCtx,
@@ -523,5 +525,55 @@ export const sendInvitation = internalAction({
 			recipient: to,
 			result,
 		});
+	},
+});
+
+// ============================================================
+// sendAbandonedLead — alerte interne "formulaire abandonné"
+// ============================================================
+// Destinée à l'équipe, pas au prospect : le relancer par email alors qu'il n'a
+// jamais validé son inscription serait déplacé.
+
+export const sendAbandonedLead = internalAction({
+	args: { partialLeadId: v.id("partialLeads") },
+	handler: async (ctx, { partialLeadId }) => {
+		const ctxData = await ctx.runQuery(
+			internal.emailsInternal.getAbandonedLeadContext,
+			{ partialLeadId },
+		);
+		if (!ctxData) return;
+		if (ctxData.recipients.length === 0) {
+			console.log("[emails] sendAbandonedLead: aucun destinataire admin");
+			return;
+		}
+
+		const prospectName =
+			`${ctxData.firstName ?? ""} ${ctxData.lastName ?? ""}`.trim() ||
+			ctxData.phone ||
+			"Prospect sans nom";
+
+		const html = abandonedLeadTemplate({
+			prospectName,
+			prospectPhone: ctxData.phone,
+			prospectEmail: ctxData.email,
+			eventName: ctxData.eventName,
+			capturedAtLabel: formatDateFR(ctxData.firstSeenAt, "Europe/Paris"),
+			crmUrl: `${SITE_URL}/crm`,
+		});
+
+		// Un envoi par destinataire : Resend mettrait sinon les adresses de
+		// l'équipe en clair dans le même en-tête To.
+		for (const to of ctxData.recipients) {
+			const result = await resendSend({
+				to,
+				subject: `Formulaire abandonné — ${prospectName}`,
+				html,
+			});
+			await logEmail(ctx, {
+				type: "email_abandoned_lead",
+				recipient: to,
+				result,
+			});
+		}
 	},
 });

@@ -150,7 +150,7 @@ export default function NotificationsSettingsPage() {
 		<div className="animate-fade-in">
 			<PageHeader
 				title="Notifications email"
-				description="5 templates transactionnels actifs — personnalisation des templates disponible en V1.5."
+				description="Les 5 emails envoyés automatiquement par l'outil, et les informations que chacun reprend."
 			/>
 
 			{/* Templates grid */}
@@ -207,11 +207,6 @@ export default function NotificationsSettingsPage() {
 									))}
 								</div>
 							</div>
-
-							{/* V1.5 note */}
-							<p className="text-[10px] text-[var(--ink-subtle)] mt-auto pt-2 border-t border-[var(--border)]">
-								Personnalisation du template — TODO V1.5
-							</p>
 						</motion.div>
 					);
 				})}

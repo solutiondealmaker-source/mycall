@@ -60,29 +60,6 @@ export const getWriterAccountForUserInternal = internalQuery({
 		};
 	},
 });
-
-// Retourne N'IMPORTE QUEL compte connecté pour ce user (writer en priorité).
-// Utilisé quand on a besoin d'un token sans se soucier du compte spécifique.
-export const getAnyAccountForUserInternal = internalQuery({
-	args: { userId: v.id("users") },
-	handler: async (ctx, { userId }) => {
-		const settings = await ctx.db
-			.query("userCalendarSettings")
-			.withIndex("by_userId", (q) => q.eq("userId", userId))
-			.first();
-		if (settings?.writerAccountId) {
-			const acc = await ctx.db.get(settings.writerAccountId);
-			if (acc) return acc;
-		}
-		const rows = await ctx.db
-			.query("userGoogleAccounts")
-			.withIndex("by_userId", (q) => q.eq("userId", userId))
-			.collect();
-		rows.sort((a, b) => b.connectedAt - a.connectedAt);
-		return rows[0] ?? null;
-	},
-});
-
 // ============================================================
 // QUERIES — public (used by UI)
 // ============================================================
@@ -121,38 +98,6 @@ export const listAccountsForUser = query({
 		return await getAccountsSummary(ctx, userId);
 	},
 });
-
-// Statut résumé — utilisé par la page settings/calendar.
-export const statusForCurrentUser = query({
-	args: {},
-	handler: async (ctx) => {
-		const userId = await getAuthUserId(ctx);
-		if (!userId) return null;
-		const accounts = await getAccountsSummary(ctx, userId);
-		if (accounts.length === 0) return { connected: false as const };
-
-		const settings = await ctx.db
-			.query("userCalendarSettings")
-			.withIndex("by_userId", (q) => q.eq("userId", userId))
-			.first();
-
-		let writerEmail: string | null = null;
-		if (settings?.writerAccountId) {
-			const w = await ctx.db.get(settings.writerAccountId);
-			writerEmail = w?.googleEmail ?? null;
-		}
-		const primary = accounts[0];
-		return {
-			connected: true as const,
-			googleEmail: writerEmail ?? primary?.googleEmail ?? "",
-			selectedCalendarId: settings?.writerCalendarId,
-			selectedCalendarSummary: settings?.writerCalendarSummary,
-			accountCount: accounts.length,
-			connectedAt: primary?.connectedAt ?? Date.now(),
-		};
-	},
-});
-
 // ============================================================
 // MUTATIONS — internal (token upsert + refresh)
 // ============================================================

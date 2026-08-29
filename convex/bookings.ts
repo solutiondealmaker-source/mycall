@@ -1156,82 +1156,6 @@ export const createBookingChecked = action({
 	},
 });
 
-// ============================================================
-// INTERNAL MUTATIONS — reserve / finalize / rollback
-// ============================================================
-
-// V1 combined path — reserve + finalize in one mutation (no Google).
-export const reserveAndFinalizeV1 = internalMutation({
-	args: {
-		slug: v.string(),
-		sessionId: v.optional(v.string()),
-		startTime: v.number(),
-		firstName: v.string(),
-		lastName: v.string(),
-		phone: v.string(),
-		email: v.optional(v.string()),
-		formAnswers: v.optional(v.string()),
-		timezone: v.string(),
-	},
-	handler: async (
-		ctx,
-		args,
-	): Promise<InsertBookingResult | { error: string }> => {
-		const pre = await preflightBooking(ctx, {
-			slug: args.slug,
-			startTime: args.startTime,
-			phone: args.phone,
-			email: args.email,
-			formAnswers: args.formAnswers,
-		});
-		if (!pre.ok) return { error: pre.reason };
-		const event = pre.event;
-		const endTime = args.startTime + event.durationMinutes * MS_PER_MIN;
-
-		const insert = await insertBookingRow(ctx, {
-			event,
-			startTime: args.startTime,
-			endTime,
-			firstName: args.firstName,
-			lastName: args.lastName,
-			phone: args.phone,
-			email: args.email,
-			formAnswers: args.formAnswers,
-			sessionId: args.sessionId,
-			timezone: args.timezone,
-			// V1: no Google — confirm directly
-			googleSyncStatus: "na",
-		});
-		if ("error" in insert) return insert;
-
-		// Commit lead immediately (no async Google step in V1)
-		await commitBookingLead(ctx, {
-			bookingId: insert.bookingId,
-			event,
-			startTime: args.startTime,
-			hostUserId: insert.hostId,
-			firstName: args.firstName,
-			lastName: args.lastName,
-			phone: args.phone,
-			email: args.email,
-			formAnswers: args.formAnswers,
-			partialLeadId: insert.partialLeadId,
-		});
-
-		// Phase 12: dispatch confirmation + host notification emails
-		// Scheduled AFTER the booking row + lead are committed (ordering gotcha)
-		await ctx.scheduler.runAfter(
-			0,
-			internal.notifyDispatch.dispatchBookingCreated,
-			{
-				bookingId: insert.bookingId,
-			},
-		);
-
-		return insert;
-	},
-});
-
 // TODO Phase 9: Two-phase reserve — inserts booking with googleSyncStatus="pending".
 // Does NOT touch the lead. Called by the action BEFORE the Google API call.
 export const reserveBookingInternal = internalMutation({
@@ -1338,29 +1262,6 @@ export const finalizeBookingInternal = internalMutation({
 			formAnswers: undefined,
 			partialLeadId: booking.partialLeadId,
 		});
-	},
-});
-
-// TODO Phase 9: DELETE booking row if still pending after Google hard fail.
-// Lead is never touched because commitBookingLead hasn't run yet.
-export const rollbackBookingInternal = internalMutation({
-	args: { bookingId: v.id("bookings"), reason: v.optional(v.string()) },
-	handler: async (ctx, { bookingId, reason }) => {
-		const booking = await ctx.db.get(bookingId);
-		if (!booking) return { rolledBack: false };
-		// Safety: only delete if still in the pending window
-		if (booking.googleSyncStatus !== "pending") return { rolledBack: false };
-		// Clean any audit rows (defensive)
-		const auditRows = await ctx.db
-			.query("bookingActivityLog")
-			.withIndex("by_booking", (q) => q.eq("bookingId", bookingId))
-			.collect();
-		for (const a of auditRows) await ctx.db.delete(a._id);
-		await ctx.db.delete(bookingId);
-		console.warn(
-			`[rollbackBookingInternal] deleted booking=${bookingId} reason=${reason ?? "unknown"}`,
-		);
-		return { rolledBack: true };
 	},
 });
 
@@ -1723,63 +1624,6 @@ export const setOutcome = mutation({
 	},
 });
 
-// Set tenue="no_show" + re-derive lead phase.
-export const markNoShow = mutation({
-	args: { bookingId: v.id("bookings") },
-	handler: async (ctx, { bookingId }) => {
-		const caller = await getAuthenticatedUser(ctx);
-		const booking = await ctx.db.get(bookingId);
-		if (!booking) throw new Error("Booking introuvable");
-
-		const isPrivileged = isAdminUser(caller);
-		if (!isPrivileged && booking.hostId !== caller._id) {
-			throw new Error("Accès refusé");
-		}
-
-		await ctx.db.patch(bookingId, {
-			tenue: "no_show",
-			status: "no_show",
-		});
-
-		if (booking.leadId) {
-			await _applyAutoPhase(ctx, booking.leadId);
-		}
-
-		await logBookingActivity(ctx, {
-			bookingId,
-			leadId: booking.leadId,
-			type: "no_show_marked",
-			actorType: "user",
-			actorUserId: caller._id,
-		});
-	},
-});
-
-// Set status="completed" (call was held, all good).
-export const markCompleted = mutation({
-	args: { bookingId: v.id("bookings") },
-	handler: async (ctx, { bookingId }) => {
-		const caller = await getAuthenticatedUser(ctx);
-		const booking = await ctx.db.get(bookingId);
-		if (!booking) throw new Error("Booking introuvable");
-
-		const isPrivileged = isAdminUser(caller);
-		if (!isPrivileged && booking.hostId !== caller._id) {
-			throw new Error("Accès refusé");
-		}
-
-		await ctx.db.patch(bookingId, { status: "completed" });
-
-		await logBookingActivity(ctx, {
-			bookingId,
-			leadId: booking.leadId,
-			type: "completed",
-			actorType: "user",
-			actorUserId: caller._id,
-		});
-	},
-});
-
 // Manual admin booking — bypass disqualification + rolling window guard.
 // Used for no-show relance or outbound calls scheduled from the CRM.
 export const adminBookByCloser = mutation({
@@ -1977,42 +1821,6 @@ export const listByLead = query({
 			.withIndex("by_leadId_startTime", (q) => q.eq("leadId", leadId))
 			.order("desc")
 			.take(50);
-	},
-});
-
-// ============================================================
-// INTERNAL QUERIES — used by crons
-// ============================================================
-
-export const listPendingExpired = internalQuery({
-	args: { staleCutoffMs: v.number() },
-	handler: async (ctx, { staleCutoffMs }) => {
-		const stuck = await ctx.db
-			.query("bookings")
-			.withIndex("by_googleSyncStatus", (q) =>
-				q.eq("googleSyncStatus", "pending"),
-			)
-			.collect();
-		return stuck.filter((b) => {
-			const startedAt = b.googleSyncStartedAt ?? b._creationTime;
-			return startedAt < staleCutoffMs;
-		});
-	},
-});
-
-export const listConfirmedWithReminderWindow = internalQuery({
-	args: { windowStart: v.number(), windowEnd: v.number() },
-	handler: async (ctx, { windowStart, windowEnd }) => {
-		return await ctx.db
-			.query("bookings")
-			.withIndex("by_status_startTime", (q) =>
-				q
-					.eq("status", "confirmed")
-					.gte("startTime", windowStart)
-					.lte("startTime", windowEnd),
-			)
-			.filter((q) => q.eq(q.field("reminderSentAt"), undefined))
-			.collect();
 	},
 });
 

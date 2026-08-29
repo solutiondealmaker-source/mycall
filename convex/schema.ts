@@ -576,6 +576,7 @@ export default defineSchema({
 			v.literal("email_cancellation"),
 			v.literal("email_reschedule"),
 			v.literal("email_invitation"),
+			v.literal("email_abandoned_lead"),
 		),
 		bookingId: v.optional(v.id("bookings")),
 		leadId: v.optional(v.id("leads")),

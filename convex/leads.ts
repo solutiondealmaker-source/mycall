@@ -53,48 +53,6 @@ async function getLeadWriteScope(
 function ownsLead(lead: Doc<"leads">, userId: Id<"users">): boolean {
 	return lead.closerUserId === userId || lead.setterUserId === userId;
 }
-
-// ============================================================
-// QUERIES
-// ============================================================
-
-// List all leads — admin / closer. Supports basic status filter.
-export const list = query({
-	args: {
-		status: v.optional(
-			v.union(
-				v.literal("potentiel"),
-				v.literal("qualifie"),
-				v.literal("rdv_reserve"),
-				v.literal("tenu"),
-				v.literal("gagne"),
-				v.literal("perdu"),
-				v.literal("follow_up"),
-			),
-		),
-		closerUserId: v.optional(v.id("users")),
-	},
-	handler: async (ctx, { status, closerUserId }) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
-		let rows: Doc<"leads">[];
-		if (status) {
-			rows = await ctx.db
-				.query("leads")
-				.withIndex("by_status", (q) => q.eq("status", status))
-				.collect();
-		} else if (closerUserId) {
-			rows = await ctx.db
-				.query("leads")
-				.withIndex("by_closerUserId", (q) => q.eq("closerUserId", closerUserId))
-				.collect();
-		} else {
-			rows = await ctx.db.query("leads").collect();
-		}
-		if (!seeAll) rows = rows.filter((l) => ownsLead(l, userId));
-		return rows;
-	},
-});
-
 // Paginated list — used by the CRM pipeline view.
 export const listPaginated = query({
 	args: {
@@ -690,23 +648,6 @@ export const activityStream = query({
 		return items;
 	},
 });
-
-// Bookings for a specific lead (used in Appels tab)
-export const listBookingsByLead = query({
-	args: { leadId: v.id("leads") },
-	handler: async (ctx, { leadId }) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
-		const lead = await ctx.db.get(leadId);
-		if (!lead || (!seeAll && !ownsLead(lead, userId))) return [];
-		const bookings = await ctx.db
-			.query("bookings")
-			.withIndex("by_leadId_startTime", (q) => q.eq("leadId", leadId))
-			.order("desc")
-			.take(50);
-		return bookings;
-	},
-});
-
 // Relances d'un lead (onglet Relances de la fiche). Cloisonné comme le reste.
 export const listFollowUpsByLead = query({
 	args: { leadId: v.id("leads") },
@@ -761,66 +702,6 @@ export const listNotesByLead = query({
 		}));
 	},
 });
-
-// ============================================================
-// INTERNAL HELPERS — called by bookings.ts + partialLeads.ts
-// ============================================================
-
-// Resolve an existing lead via normalized phone/email indexes (O(log n)).
-// iClone is a new deployment — all leads are indexed from day 1, so no legacy
-// fallback is needed (unlike DG COACHING which had pre-migration rows).
-export const findLeadByAnyKeyInternal = internalQuery({
-	args: {
-		phone: v.optional(v.string()),
-		email: v.optional(v.string()),
-	},
-	handler: async (ctx, { phone, email }) => {
-		const normPhone = normalizePhone(phone);
-		const normEmail = normalizeEmail(email);
-		if (normPhone) {
-			const byPhone = await ctx.db
-				.query("leads")
-				.withIndex("by_phoneNormalized", (q) =>
-					q.eq("phoneNormalized", normPhone),
-				)
-				.first();
-			if (byPhone) return byPhone;
-		}
-		if (normEmail) {
-			const byEmail = await ctx.db
-				.query("leads")
-				.withIndex("by_emailNormalized", (q) =>
-					q.eq("emailNormalized", normEmail),
-				)
-				.first();
-			if (byEmail) return byEmail;
-		}
-		return null;
-	},
-});
-
-// Upsert lead for a confirmed booking. Writes normalized dedup keys.
-// Preserves: setter if already assigned, closer if lead already converted.
-// Returns the leadId.
-export const upsertLeadForBookingInternal = internalMutation({
-	args: {
-		eventId: v.id("events"),
-		eventSlug: v.string(),
-		eventSetterId: v.optional(v.id("users")),
-		eventTagSource: v.optional(v.string()),
-		firstName: v.string(),
-		lastName: v.string(),
-		phone: v.string(),
-		email: v.optional(v.string()),
-		formAnswers: v.optional(v.string()),
-		startTime: v.number(),
-		hostUserId: v.id("users"),
-	},
-	handler: async (ctx, args) => {
-		return await _upsertLeadForBooking(ctx, args);
-	},
-});
-
 // Module-internal version usable within bookings.ts mutations directly.
 // Exported as a plain async function (not a Convex function) so bookings.ts
 // can call it synchronously within the same mutation transaction.
@@ -1014,11 +895,3 @@ export async function _applyAutoPhase(
 		lastInteractionAt: now,
 	});
 }
-
-// Convex-registered version of _applyAutoPhase for cross-file use.
-export const applyAutoPhaseInternal = internalMutation({
-	args: { leadId: v.id("leads") },
-	handler: async (ctx, { leadId }) => {
-		await _applyAutoPhase(ctx, leadId);
-	},
-});

@@ -24,6 +24,7 @@ export const insertLogRow = internalMutation({
 			v.literal("email_cancellation"),
 			v.literal("email_reschedule"),
 			v.literal("email_invitation"),
+			v.literal("email_abandoned_lead"),
 		),
 		bookingId: v.optional(v.string()),
 		leadId: v.optional(v.string()),
@@ -79,5 +80,41 @@ export const listRecentLogs = query({
 			.withIndex("by_date")
 			.order("desc")
 			.take(50);
+	},
+});
+
+// ============================================================
+// getAbandonedLeadContext — données de l'alerte "formulaire abandonné"
+// ============================================================
+// Renvoie le prospect partiel, le nom de l'événement, et les destinataires :
+// les admins de l'instance. On les résout ici plutôt que dans l'action, une
+// action ne pouvant pas lire la base directement.
+export const getAbandonedLeadContext = internalQuery({
+	args: { partialLeadId: v.id("partialLeads") },
+	handler: async (ctx, { partialLeadId }) => {
+		const pl = await ctx.db.get(partialLeadId);
+		if (!pl) return null;
+
+		const event = await ctx.db.get(pl.eventId);
+
+		const users = await ctx.db.query("users").collect();
+		const recipients = users
+			.filter(
+				(u) =>
+					u.email &&
+					(u.isAdmin === true ||
+						["admin", "ceo", "ops", "head_of_sales"].includes(u.role ?? "")),
+			)
+			.map((u) => u.email as string);
+
+		return {
+			firstName: pl.firstName ?? null,
+			lastName: pl.lastName ?? null,
+			phone: pl.phone ?? null,
+			email: pl.email ?? null,
+			eventName: event?.name ?? pl.eventSlug,
+			firstSeenAt: pl.firstSeenAt,
+			recipients,
+		};
 	},
 });

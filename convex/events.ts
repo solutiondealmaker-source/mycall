@@ -291,106 +291,6 @@ export const duplicate = mutation({
 		return newEventId;
 	},
 });
-
-// ============================================================
-// MUTATIONS — questions
-// ============================================================
-
-export const addQuestion = mutation({
-	args: {
-		eventId: v.id("events"),
-		type: v.union(
-			v.literal("email"),
-			v.literal("short_text"),
-			v.literal("long_text"),
-			v.literal("single_select"),
-			v.literal("multi_select"),
-			v.literal("yes_no"),
-			v.literal("number"),
-		),
-		label: v.string(),
-		required: v.boolean(),
-		options: v.optional(v.array(v.string())),
-		disqualifyingValues: v.optional(v.array(v.string())),
-		// When omitted, question is appended at the end
-		order: v.optional(v.number()),
-	},
-	handler: async (ctx, args) => {
-		await requireAdmin(ctx);
-		const event = await ctx.db.get(args.eventId);
-		if (!event) throw new Error("Événement introuvable");
-
-		let order = args.order;
-		if (order === undefined) {
-			const last = await ctx.db
-				.query("eventQuestions")
-				.withIndex("by_eventId_order", (q) => q.eq("eventId", args.eventId))
-				.order("desc")
-				.first();
-			order = (last?.order ?? -1) + 1;
-		}
-
-		return await ctx.db.insert("eventQuestions", {
-			eventId: args.eventId,
-			type: args.type,
-			label: args.label,
-			required: args.required,
-			options: args.options,
-			disqualifyingValues: args.disqualifyingValues,
-			order,
-		});
-	},
-});
-
-export const updateQuestion = mutation({
-	args: {
-		questionId: v.id("eventQuestions"),
-		label: v.optional(v.string()),
-		required: v.optional(v.boolean()),
-		options: v.optional(v.array(v.string())),
-		disqualifyingValues: v.optional(v.array(v.string())),
-	},
-	handler: async (ctx, { questionId, ...patch }) => {
-		await requireAdmin(ctx);
-		const q = await ctx.db.get(questionId);
-		if (!q) throw new Error("Question introuvable");
-		const cleanPatch = Object.fromEntries(
-			Object.entries(patch).filter(([, v]) => v !== undefined),
-		);
-		await ctx.db.patch(questionId, cleanPatch);
-		return questionId;
-	},
-});
-
-export const deleteQuestion = mutation({
-	args: { questionId: v.id("eventQuestions") },
-	handler: async (ctx, { questionId }) => {
-		await requireAdmin(ctx);
-		const q = await ctx.db.get(questionId);
-		if (!q) throw new Error("Question introuvable");
-		await ctx.db.delete(questionId);
-	},
-});
-
-// Reorder questions. `orderedIds` must contain ALL question ids for the event.
-export const reorderQuestions = mutation({
-	args: {
-		eventId: v.id("events"),
-		orderedIds: v.array(v.id("eventQuestions")),
-	},
-	handler: async (ctx, { eventId, orderedIds }) => {
-		await requireAdmin(ctx);
-		for (let i = 0; i < orderedIds.length; i++) {
-			const qId = orderedIds[i];
-			if (!qId) continue;
-			const q = await ctx.db.get(qId);
-			if (!q || q.eventId !== eventId)
-				throw new Error("Question invalide ou hors événement");
-			await ctx.db.patch(qId, { order: i });
-		}
-	},
-});
-
 // ============================================================
 // MUTATIONS — hosts
 // ============================================================
@@ -560,22 +460,6 @@ export const setQuestions = mutation({
 		}
 	},
 });
-
-// ============================================================
-// INTERNAL — used by bookings.ts
-// ============================================================
-
-// Fetch event by slug regardless of active status (bookings path needs it).
-export const getBySlugInternal = internalQuery({
-	args: { slug: v.string() },
-	handler: async (ctx, { slug }) => {
-		return await ctx.db
-			.query("events")
-			.withIndex("by_slug", (q) => q.eq("slug", slug))
-			.first();
-	},
-});
-
 // Public query — list questions for a booking page (by slug, no auth).
 export const listQuestionsPublic = query({
 	args: { slug: v.string() },

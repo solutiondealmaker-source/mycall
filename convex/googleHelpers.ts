@@ -34,35 +34,3 @@ export const getCurrentUserInternal = internalQuery({
 		return await ctx.db.get(userId);
 	},
 });
-
-// ============================================================
-// MUTATIONS — patch helpers pour les actions Google
-// ============================================================
-
-// Patch les champs Google sur un booking après création d'event (path "na" fallback)
-export const patchBookingGoogleFieldsMutation = internalMutation({
-	args: {
-		bookingId: v.id("bookings"),
-		googleEventId: v.string(),
-		googleMeetUrl: v.optional(v.string()),
-		googleCalendarId: v.string(),
-		googleAccountId: v.id("userGoogleAccounts"),
-	},
-	handler: async (
-		ctx,
-		{
-			bookingId,
-			googleEventId,
-			googleMeetUrl,
-			googleCalendarId,
-			googleAccountId,
-		},
-	) => {
-		await ctx.db.patch(bookingId, {
-			googleEventId,
-			googleMeetUrl,
-			googleCalendarId,
-			googleAccountId,
-		});
-	},
-});

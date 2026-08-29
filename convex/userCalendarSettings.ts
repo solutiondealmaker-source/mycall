@@ -58,44 +58,6 @@ async function getRaw(
 		.withIndex("by_userId", (q) => q.eq("userId", userId))
 		.first();
 }
-
-// ============================================================
-// QUERIES — internal (used by actions)
-// ============================================================
-
-export const getSettingsForUserInternal = internalQuery({
-	args: { userId: v.id("users") },
-	handler: async (ctx, { userId }) => {
-		return await getRaw(ctx, userId);
-	},
-});
-
-// Retourne les calendriers de conflict-check. Inclut toujours le writer (safety net).
-export const getConflictCalendarsForUserInternal = internalQuery({
-	args: { userId: v.id("users") },
-	handler: async (ctx, { userId }): Promise<ConflictCalendar[]> => {
-		const s = await getRaw(ctx, userId);
-		if (!s) return [];
-		const list: ConflictCalendar[] = [...s.conflictCheckCalendars];
-		// Safety net G5 — le writer doit toujours être dans la liste
-		if (s.writerAccountId && s.writerCalendarId) {
-			const alreadyListed = list.some(
-				(c) =>
-					c.accountId === s.writerAccountId &&
-					c.calendarId === s.writerCalendarId,
-			);
-			if (!alreadyListed) {
-				list.push({
-					accountId: s.writerAccountId,
-					calendarId: s.writerCalendarId,
-					calendarSummary: s.writerCalendarSummary,
-				});
-			}
-		}
-		return list;
-	},
-});
-
 // ============================================================
 // QUERIES — public (UI)
 // ============================================================

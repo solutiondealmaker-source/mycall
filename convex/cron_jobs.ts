@@ -50,7 +50,12 @@ export const detectAbandonedLeadsJob = internalMutation({
 		let flagged = 0;
 		for (const pl of partialLeads) {
 			await ctx.db.patch(pl._id, { abandonedNotifiedAt: now });
-			// TODO Phase 12: dispatch abandoned-lead notification
+			// Même alerte que le chemin principal (checkPartialLeadAbandoned) : ce
+			// cron est le filet de sécurité, il doit donc prévenir l'équipe lui aussi.
+			// Le filtre ci-dessus exclut déjà les leads notifiés, pas de doublon.
+			await ctx.scheduler.runAfter(0, internal.emails.sendAbandonedLead, {
+				partialLeadId: pl._id,
+			});
 			flagged++;
 		}
 

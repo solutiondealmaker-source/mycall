@@ -119,10 +119,6 @@ export default function ProfilePage() {
 						<p className="text-xs text-[var(--ink-muted)] mt-0.5">
 							{profile?.email ?? ""}
 						</p>
-						<p className="text-[11px] text-[var(--ink-ghost)] mt-1.5">
-							Modification de l'avatar disponible en V1.5 — stockage Convex
-							Files
-						</p>
 					</div>
 				</div>
 
@@ -257,8 +253,7 @@ export default function ProfilePage() {
 								>
 									/reset
 								</Link>
-								. La modification directe depuis les paramètres sera disponible
-								en V1.5.
+								.{" "}
 							</p>
 						</div>
 					</div>

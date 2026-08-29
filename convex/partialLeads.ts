@@ -218,12 +218,13 @@ export const checkPartialLeadAbandoned = internalMutation({
 		if (pl.bookingId) return;
 
 		const now = Date.now();
+		// Le marquage précède l'envoi : c'est lui qui rend l'opération idempotente
+		// (le garde `abandonedNotifiedAt` ci-dessus). Une double alerte serait plus
+		// gênante qu'une alerte manquée.
 		await ctx.db.patch(partialLeadId, { abandonedNotifiedAt: now });
 
-		// TODO Phase 12: dispatch abandoned-lead notification (email / Telegram)
-		// await ctx.scheduler.runAfter(0, internal.notifications.sendAbandonedLead, {
-		//   partialLeadId,
-		// });
-		console.log(`[partialLeads] abandoned lead flagged: ${partialLeadId}`);
+		await ctx.scheduler.runAfter(0, internal.emails.sendAbandonedLead, {
+			partialLeadId,
+		});
 	},
 });
