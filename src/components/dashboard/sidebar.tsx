@@ -29,6 +29,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { BRAND_LOGO_FULL, BRAND_LOGO_ICON, BRAND_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
@@ -169,8 +170,8 @@ export function Sidebar() {
 				>
 					{collapsed ? (
 						<Image
-							src="/logo-icon.png"
-							alt="Mycall"
+							src={BRAND_LOGO_ICON}
+							alt={BRAND_NAME}
 							width={300}
 							height={300}
 							priority
@@ -178,8 +179,8 @@ export function Sidebar() {
 						/>
 					) : (
 						<Image
-							src="/logo.png"
-							alt="Mycall"
+							src={BRAND_LOGO_FULL}
+							alt={BRAND_NAME}
 							width={800}
 							height={300}
 							priority

@@ -2,6 +2,7 @@ import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import type { Metadata } from "next";
 import { Manrope, Outfit } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { BRAND_NAME } from "@/lib/brand";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -18,7 +19,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-	title: "Mycall — Booking & CRM",
+	title: `${BRAND_NAME} — Booking & CRM`,
 	description: "Plateforme de booking et CRM pour closers.",
 };
 

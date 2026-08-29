@@ -2,6 +2,7 @@ import { ConvexHttpClient } from "convex/browser";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BookClient } from "@/components/book/book-client";
+import { BRAND_NAME } from "@/lib/brand";
 import type { EventDoc, EventQuestion } from "@/types/events";
 import { api } from "../../../../../convex/_generated/api";
 
@@ -34,7 +35,7 @@ export async function generateMetadata({
 
 	if (!event) {
 		return {
-			title: "Réservation — Mycall",
+			title: `Réservation — ${BRAND_NAME}`,
 			description: "Prenez rendez-vous en ligne.",
 		};
 	}

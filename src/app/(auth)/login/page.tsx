@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BRAND_LOGO_ICON, BRAND_NAME } from "@/lib/brand";
 
 const containerVariants = {
 	hidden: { opacity: 0, y: 16, scale: 0.98 },
@@ -74,8 +75,8 @@ export default function LoginPage() {
 					className="mb-6 flex flex-col items-center gap-3"
 				>
 					<Image
-						src="/logo-icon.png"
-						alt="Mycall"
+						src={BRAND_LOGO_ICON}
+						alt={BRAND_NAME}
 						width={64}
 						height={64}
 						priority
@@ -85,7 +86,7 @@ export default function LoginPage() {
 						className="font-display text-2xl font-semibold tracking-tight text-[var(--ink)]"
 						style={{ fontFamily: "var(--font-display)" }}
 					>
-						Mycall
+						{BRAND_NAME}
 					</span>
 					<p className="text-sm text-[var(--ink-muted)]">Se connecter</p>
 				</motion.div>
@@ -163,7 +164,7 @@ export default function LoginPage() {
 				variants={itemVariants}
 				className="mt-6 text-center text-xs text-[var(--ink-ghost)]"
 			>
-				Powered by Mycall
+				Propulsé par {BRAND_NAME}
 			</motion.p>
 		</motion.div>
 	);

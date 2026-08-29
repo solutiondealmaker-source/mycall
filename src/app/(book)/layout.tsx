@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BRAND_NAME } from "@/lib/brand";
 
 export default function BookLayout({ children }: { children: ReactNode }) {
 	return (
@@ -18,17 +19,14 @@ export default function BookLayout({ children }: { children: ReactNode }) {
 				<div className="w-full max-w-[920px]">{children}</div>
 			</main>
 
+			{/* Mention de marque, sans lien : la page est publique et vue par des
+			    prospects — on ne les envoie pas hors du parcours de réservation. */}
 			<footer className="relative z-10 shrink-0 pb-6 md:pb-8 text-center">
 				<p className="text-xs text-[var(--ink-ghost)]">
 					Propulsé par{" "}
-					<a
-						href="https://github.com/iclone"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="font-[family-name:var(--font-display)] font-semibold text-[var(--ink-ghost)] hover:text-[var(--ink-muted)] transition-colors"
-					>
-						Mycall
-					</a>
+					<span className="font-[family-name:var(--font-display)] font-semibold">
+						{BRAND_NAME}
+					</span>
 				</p>
 			</footer>
 		</div>
