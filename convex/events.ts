@@ -4,7 +4,7 @@
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
-import { requireAdmin, requireReadAll } from "./lib/auth";
+import { requireAdmin, requireAuth, requireReadAll } from "./lib/auth";
 
 // ============================================================
 // QUERIES
@@ -36,6 +36,30 @@ export const list = query({
 			);
 		}
 		return rows;
+	},
+});
+
+// Événements actifs, pour la prise de rendez-vous manuelle depuis le CRM.
+// Accessible à tout membre : un closer doit pouvoir choisir l'événement sans
+// avoir accès à la page Événements, qui elle exige une vision globale.
+// Projeté volontairement : juste de quoi remplir un menu déroulant.
+export const listForBooking = query({
+	args: {},
+	handler: async (ctx) => {
+		await requireAuth(ctx);
+		const rows = await ctx.db
+			.query("events")
+			.withIndex("by_isActive", (q) => q.eq("isActive", true))
+			.collect();
+		return rows
+			.map((e) => ({
+				_id: e._id,
+				name: e.name,
+				slug: e.slug,
+				durationMinutes: e.durationMinutes,
+				timezone: e.timezone,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name, "fr"));
 	},
 });
 

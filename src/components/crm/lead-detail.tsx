@@ -15,6 +15,8 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AddFollowUpDialog } from "@/components/crm/add-follow-up-dialog";
+import { BookForLeadDialog } from "@/components/crm/book-for-lead-dialog";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { Button } from "@/components/ui/button";
 import {
@@ -456,6 +458,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 								)}
 								{activeTab === "appels" && (
 									<AppelsTab
+										lead={lead}
 										leadId={leadId}
 										onRecordOutcome={(id) => setOutcomeBookingId(id)}
 									/>
@@ -636,122 +639,131 @@ function RelancesTab({ leadId }: { leadId: Id<"leads"> }) {
 	}
 	if (followUps.length === 0) {
 		return (
-			<div className="py-10 text-center">
-				<p className="text-sm text-[var(--ink-muted)]">
-					Aucune relance planifiée
-				</p>
-				<p className="text-xs text-[var(--ink-ghost)] mt-1">
-					Une relance se crée en enregistrant l'issue d'un appel en « Follow-up
-					».
-				</p>
+			<div className="py-10 flex flex-col items-center gap-4 text-center">
+				<div>
+					<p className="text-sm text-[var(--ink-muted)]">
+						Aucune relance planifiée
+					</p>
+					<p className="text-xs text-[var(--ink-ghost)] mt-1">
+						Planifie-la ici, ou enregistre l'issue d'un appel en « Follow-up ».
+					</p>
+				</div>
+				<AddFollowUpDialog leadId={leadId} />
 			</div>
 		);
 	}
 
 	return (
-		<ul className="flex flex-col divide-y divide-[var(--border)]">
-			{followUps.map((f) => {
-				const st = FOLLOWUP_STATUS[f.status] ?? FOLLOWUP_STATUS.pending;
-				const overdue = f.status === "pending" && f.dueAt < Date.now();
-				return (
-					<li
-						key={f._id}
-						className="py-3 flex items-start justify-between gap-3"
-					>
-						<div className="min-w-0">
-							<div className="flex items-center gap-2 flex-wrap">
-								<span
-									className={cn(
-										"text-[11px] font-medium px-2 py-0.5 rounded-full",
-										st.className,
-									)}
-								>
-									{st.label}
-								</span>
-								<span className="text-xs text-[var(--ink-muted)]">
-									{CHANNEL_LABEL[f.channel] ?? f.channel}
-								</span>
-								<span
-									className={cn(
-										"text-xs",
-										overdue
-											? "text-[var(--destructive)] font-medium"
-											: "text-[var(--ink-muted)]",
-									)}
-								>
-									{new Intl.DateTimeFormat("fr-FR", {
-										day: "numeric",
-										month: "short",
-										hour: "2-digit",
-										minute: "2-digit",
-									}).format(new Date(f.dueAt))}
-									{overdue ? " — en retard" : ""}
-								</span>
+		<>
+			<div className="flex justify-end pb-3">
+				<AddFollowUpDialog leadId={leadId} />
+			</div>
+			<ul className="flex flex-col divide-y divide-[var(--border)]">
+				{followUps.map((f) => {
+					const st = FOLLOWUP_STATUS[f.status] ?? FOLLOWUP_STATUS.pending;
+					const overdue = f.status === "pending" && f.dueAt < Date.now();
+					return (
+						<li
+							key={f._id}
+							className="py-3 flex items-start justify-between gap-3"
+						>
+							<div className="min-w-0">
+								<div className="flex items-center gap-2 flex-wrap">
+									<span
+										className={cn(
+											"text-[11px] font-medium px-2 py-0.5 rounded-full",
+											st.className,
+										)}
+									>
+										{st.label}
+									</span>
+									<span className="text-xs text-[var(--ink-muted)]">
+										{CHANNEL_LABEL[f.channel] ?? f.channel}
+									</span>
+									<span
+										className={cn(
+											"text-xs",
+											overdue
+												? "text-[var(--destructive)] font-medium"
+												: "text-[var(--ink-muted)]",
+										)}
+									>
+										{new Intl.DateTimeFormat("fr-FR", {
+											day: "numeric",
+											month: "short",
+											hour: "2-digit",
+											minute: "2-digit",
+										}).format(new Date(f.dueAt))}
+										{overdue ? " — en retard" : ""}
+									</span>
+								</div>
+								<p className="text-sm text-[var(--ink)] mt-1">{f.reason}</p>
+								{f.note && (
+									<p className="text-xs text-[var(--ink-muted)] mt-0.5">
+										{f.note}
+									</p>
+								)}
+								{f.closerName && (
+									<p className="text-[11px] text-[var(--ink-ghost)] mt-0.5">
+										{f.closerName}
+									</p>
+								)}
 							</div>
-							<p className="text-sm text-[var(--ink)] mt-1">{f.reason}</p>
-							{f.note && (
-								<p className="text-xs text-[var(--ink-muted)] mt-0.5">
-									{f.note}
-								</p>
-							)}
-							{f.closerName && (
-								<p className="text-[11px] text-[var(--ink-ghost)] mt-0.5">
-									{f.closerName}
-								</p>
-							)}
-						</div>
 
-						{f.status === "pending" && (
-							<div className="flex gap-1.5 shrink-0">
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-7 text-xs"
-									onClick={async () => {
-										try {
-											await complete({ followUpId: f._id });
-											toast.success("Relance marquée faite");
-										} catch (err) {
-											toast.error(
-												err instanceof Error ? err.message : "Erreur",
-											);
-										}
-									}}
-								>
-									Faite
-								</Button>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-7 text-xs text-[var(--ink-muted)]"
-									onClick={async () => {
-										try {
-											await cancel({ followUpId: f._id });
-											toast.success("Relance annulée");
-										} catch (err) {
-											toast.error(
-												err instanceof Error ? err.message : "Erreur",
-											);
-										}
-									}}
-								>
-									Annuler
-								</Button>
-							</div>
-						)}
-					</li>
-				);
-			})}
-		</ul>
+							{f.status === "pending" && (
+								<div className="flex gap-1.5 shrink-0">
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-7 text-xs"
+										onClick={async () => {
+											try {
+												await complete({ followUpId: f._id });
+												toast.success("Relance marquée faite");
+											} catch (err) {
+												toast.error(
+													err instanceof Error ? err.message : "Erreur",
+												);
+											}
+										}}
+									>
+										Faite
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-7 text-xs text-[var(--ink-muted)]"
+										onClick={async () => {
+											try {
+												await cancel({ followUpId: f._id });
+												toast.success("Relance annulée");
+											} catch (err) {
+												toast.error(
+													err instanceof Error ? err.message : "Erreur",
+												);
+											}
+										}}
+									>
+										Annuler
+									</Button>
+								</div>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+		</>
 	);
 }
 
 // ─── Appels tab ───────────────────────────────────────────────────────────────
 
 function AppelsTab({
+	lead,
 	leadId,
 	onRecordOutcome,
 }: {
+	lead: Doc<"leads">;
 	leadId: Id<"leads">;
 	onRecordOutcome: (id: Id<"bookings">) => void;
 }) {
@@ -771,17 +783,21 @@ function AppelsTab({
 	}
 	if (bookings.length === 0) {
 		return (
-			<div className="flex flex-col items-center justify-center py-16 gap-2">
+			<div className="flex flex-col items-center justify-center py-16 gap-4">
 				<Calendar className="w-8 h-8 text-[var(--ink-ghost)]" />
 				<p className="text-sm text-[var(--ink-muted)]">
 					Aucun appel pour l'instant
 				</p>
+				<BookForLeadDialog lead={lead} />
 			</div>
 		);
 	}
 
 	return (
 		<div className="p-6 space-y-2">
+			<div className="flex justify-end pb-1">
+				<BookForLeadDialog lead={lead} />
+			</div>
 			{(bookings as Doc<"bookings">[]).map((b) => (
 				<div
 					key={b._id}

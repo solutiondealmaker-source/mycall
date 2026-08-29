@@ -27,14 +27,27 @@ import { normalizeEmail, normalizePhone } from "./lib/leadMatch";
 // setterUserId == eux). Admin/direction (isAdminUser) voient tout.
 // ============================================================
 
+// Portée de LECTURE. `seeAll` couvre les admins et les observateurs.
+// À n'utiliser que dans des `query`.
 async function getLeadScope(
 	ctx: QueryCtx | MutationCtx,
 ): Promise<{ userId: Id<"users">; seeAll: boolean }> {
 	const user = await getAuthenticatedUser(ctx);
-	// canReadAll couvre les admins et les observateurs. L'écriture reste gardée
-	// séparément (requireAdmin / ownsLead), un observateur ne peut donc rien
-	// modifier même s'il voit tout.
 	return { userId: user._id, seeAll: canReadAll(user) };
+}
+
+// Portée d'ÉCRITURE. Un observateur est refusé d'emblée, et `seeAll` retombe
+// sur isAdminUser : sans cette seconde fonction, élargir la lecture élargirait
+// mécaniquement l'écriture, puisque les mutations décident d'après le même
+// `seeAll`. Voir tout ne doit jamais valoir pouvoir tout modifier.
+async function getLeadWriteScope(
+	ctx: MutationCtx,
+): Promise<{ userId: Id<"users">; seeAll: boolean }> {
+	const user = await getAuthenticatedUser(ctx);
+	if (user.role === "viewer") {
+		throw new Error("Ton rôle est en lecture seule.");
+	}
+	return { userId: user._id, seeAll: isAdminUser(user) };
 }
 
 function ownsLead(lead: Doc<"leads">, userId: Id<"users">): boolean {
@@ -258,7 +271,7 @@ export const update = mutation({
 		montantContracte: v.optional(v.number()),
 	},
 	handler: async (ctx, { id, ...patch }) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
+		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const lead = await ctx.db.get(id);
 		if (!lead) throw new Error("Lead introuvable");
 		if (!seeAll && !ownsLead(lead, userId))
@@ -475,7 +488,7 @@ export const addNote = mutation({
 		body: v.string(),
 	},
 	handler: async (ctx, { leadId, body }) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
+		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const lead = await ctx.db.get(leadId);
 		if (!lead) throw new Error("Lead introuvable");
 		if (!seeAll && !ownsLead(lead, userId))
@@ -527,7 +540,7 @@ export const addFollowUp = mutation({
 		note: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
+		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const lead = await ctx.db.get(args.leadId);
 		if (!lead) throw new Error("Lead introuvable");
 		if (!seeAll && !ownsLead(lead, userId))
@@ -558,7 +571,7 @@ export const completeFollowUp = mutation({
 		note: v.optional(v.string()),
 	},
 	handler: async (ctx, { followUpId, note }) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
+		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const fu = await ctx.db.get(followUpId);
 		if (!fu) throw new Error("Follow-up introuvable");
 		const fuLead = await ctx.db.get(fu.leadId);
@@ -575,7 +588,7 @@ export const completeFollowUp = mutation({
 export const cancelFollowUp = mutation({
 	args: { followUpId: v.id("leadFollowUps") },
 	handler: async (ctx, { followUpId }) => {
-		const { userId, seeAll } = await getLeadScope(ctx);
+		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const fu = await ctx.db.get(followUpId);
 		if (!fu) throw new Error("Follow-up introuvable");
 		const fuLead = await ctx.db.get(fu.leadId);
