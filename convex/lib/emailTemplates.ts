@@ -174,6 +174,33 @@ export interface BookingConfirmationArgs {
 	meetUrl?: string | null;
 	cancelUrl: string;
 	rescheduleUrl: string;
+	// Liens d'ajout à l'agenda. Le .ics joint couvre tous les clients, mais
+	// demande d'ouvrir une pièce jointe ; ces liens font l'ajout en un clic.
+	googleCalUrl?: string;
+	outlookCalUrl?: string;
+}
+
+// Ligne « Ajouter à mon agenda ». Depuis que Google ne notifie plus le
+// prospect, c'est le seul chemin qui met le rendez-vous dans son agenda —
+// il mérite donc d'être visible, pas enterré dans une pièce jointe.
+function addToCalendarBlock(
+	googleCalUrl?: string,
+	outlookCalUrl?: string,
+): string {
+	if (!googleCalUrl && !outlookCalUrl) return "";
+	const links = [
+		googleCalUrl ? secondaryLink("Google Agenda", googleCalUrl) : "",
+		outlookCalUrl ? secondaryLink("Outlook", outlookCalUrl) : "",
+	].filter(Boolean);
+
+	return `
+<div style="background:#F1F5F9;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px;margin:20px 0 0;text-align:center">
+  <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#1E293B">Ajoutez ce rendez-vous à votre agenda</p>
+  <p style="margin:0;font-size:13px;color:#64748B;line-height:1.7">
+    ${links.join("&nbsp;&nbsp;·&nbsp;&nbsp;")}
+  </p>
+  <p style="margin:6px 0 0;font-size:11px;color:#94A3B8">Autre agenda&nbsp;: ouvrez le fichier joint à cet email.</p>
+</div>`;
 }
 
 export function bookingConfirmationTemplate(
@@ -187,6 +214,8 @@ export function bookingConfirmationTemplate(
 		meetUrl,
 		cancelUrl,
 		rescheduleUrl,
+		googleCalUrl,
+		outlookCalUrl,
 	} = args;
 
 	const meetSection = meetUrl
@@ -212,6 +241,8 @@ ${infoBlock([
 ])}
 
 ${ctaButton("Voir mes informations de rendez-vous", meetUrl ?? rescheduleUrl)}
+
+${addToCalendarBlock(googleCalUrl, outlookCalUrl)}
 
 <p style="margin:20px 0 0;font-size:13px;color:#94A3B8;line-height:1.7;text-align:center">
   Besoin de changer ? &nbsp;${secondaryLink("Reprogrammer", rescheduleUrl)}&nbsp;&nbsp;·&nbsp;&nbsp;${secondaryLink("Annuler", cancelUrl)}

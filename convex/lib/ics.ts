@@ -79,3 +79,47 @@ export function buildIcs(args: IcsArgs): string {
 
 	return `${lines.map(fold).join("\r\n")}\r\n`;
 }
+
+// ============================================================
+// Liens « Ajouter à mon agenda »
+// ============================================================
+//
+// Le fichier .ics couvre tous les clients, mais reste une pièce jointe à
+// ouvrir. Ces liens ouvrent directement l'agenda du prospect avec l'événement
+// pré-rempli : un clic au lieu de trois.
+
+function compact(ms: number): string {
+	return `${new Date(ms).toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+}
+
+export interface CalendarLinkArgs {
+	startMs: number;
+	endMs: number;
+	title: string;
+	details?: string;
+	location?: string;
+}
+
+export function googleCalendarUrl(a: CalendarLinkArgs): string {
+	const p = new URLSearchParams({
+		action: "TEMPLATE",
+		text: a.title,
+		dates: `${compact(a.startMs)}/${compact(a.endMs)}`,
+	});
+	if (a.details) p.set("details", a.details);
+	if (a.location) p.set("location", a.location);
+	return `https://calendar.google.com/calendar/render?${p.toString()}`;
+}
+
+export function outlookCalendarUrl(a: CalendarLinkArgs): string {
+	const p = new URLSearchParams({
+		path: "/calendar/action/compose",
+		rru: "addevent",
+		subject: a.title,
+		startdt: new Date(a.startMs).toISOString(),
+		enddt: new Date(a.endMs).toISOString(),
+	});
+	if (a.details) p.set("body", a.details);
+	if (a.location) p.set("location", a.location);
+	return `https://outlook.live.com/calendar/0/deeplink/compose?${p.toString()}`;
+}

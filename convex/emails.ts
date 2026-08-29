@@ -32,7 +32,7 @@ import {
 	reminderTemplate,
 	rescheduleTemplate,
 } from "./lib/emailTemplates";
-import { buildIcs } from "./lib/ics";
+import { buildIcs, googleCalendarUrl, outlookCalendarUrl } from "./lib/ics";
 
 // ============================================================
 // Config
@@ -224,6 +224,16 @@ export const sendBookingConfirmation = internalAction({
 
 		const dateStr = formatDateFR(booking.startTime, booking.timezone);
 
+		const calLink = {
+			startMs: booking.startTime,
+			endMs: booking.endTime,
+			title: host?.name ? `${event.name} — ${host.name}` : event.name,
+			details: booking.googleMeetUrl
+				? `Lien de réunion : ${booking.googleMeetUrl}`
+				: undefined,
+			location: booking.googleMeetUrl ?? undefined,
+		};
+
 		const html = bookingConfirmationTemplate({
 			prospectName: booking.prospectName,
 			prospectFirstName: booking.prospectFirstName,
@@ -233,6 +243,8 @@ export const sendBookingConfirmation = internalAction({
 			meetUrl: booking.googleMeetUrl,
 			cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
 			rescheduleUrl: `${SITE_URL}/book/reschedule/${booking.rescheduleToken}`,
+			googleCalUrl: googleCalendarUrl(calLink),
+			outlookCalUrl: outlookCalendarUrl(calLink),
 		});
 
 		const result = await resendSend({
