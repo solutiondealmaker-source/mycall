@@ -16,10 +16,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { canAdminister } from "@/lib/roles";
 import { cn } from "@/lib/utils";
-
-// Rôles autorisés à supprimer (aligné sur isAdminUser côté serveur).
-const ADMIN_ROLES = new Set(["admin", "ceo", "ops", "head_of_sales"]);
 
 interface LeadsBulkActionsBarProps {
 	selectedCount: number;
@@ -33,8 +31,7 @@ export function LeadsBulkActionsBar({
 	selectedIds,
 }: LeadsBulkActionsBarProps) {
 	const me = useQuery(api.users.getMyProfile);
-	const isAdmin =
-		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
+	const isAdmin = canAdminister(me);
 
 	const removeMany = useMutation(api.leads.removeMany);
 	const assignMany = useMutation(api.leads.assignMany);

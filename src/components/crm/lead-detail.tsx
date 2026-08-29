@@ -28,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { canAdminister } from "@/lib/roles";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -45,9 +46,6 @@ const TABS: { id: TabId; label: string }[] = [
 	{ id: "notes", label: "Notes" },
 ];
 
-// Rôles autorisés à supprimer (aligné sur isAdminUser côté serveur).
-const ADMIN_ROLES = new Set(["admin", "ceo", "ops", "head_of_sales"]);
-
 interface LeadDetailProps {
 	leadId: Id<"leads">;
 }
@@ -58,8 +56,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 	const updateLead = useMutation(api.leads.update);
 	const removeLead = useMutation(api.leads.remove);
 	const me = useQuery(api.users.getMyProfile);
-	const isAdmin =
-		!!me && (me.isAdmin === true || ADMIN_ROLES.has(me.role ?? ""));
+	const isAdmin = canAdminister(me);
 	const router = useRouter();
 	const [activeTab, setActiveTab] = useState<TabId>("parcours");
 	const [confirmDelete, setConfirmDelete] = useState(false);

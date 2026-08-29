@@ -30,17 +30,29 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { BRAND_LOGO_FULL, BRAND_LOGO_ICON, BRAND_NAME } from "@/lib/brand";
+import { canReadAll } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
+// `readAll: true` marque les pages dont toutes les requêtes exigent une vision
+// globale (canReadAll côté serveur). Les afficher à un Closer ou un Setter
+// revient à lui proposer un lien qui lève une erreur : le serveur refuse, et
+// la page n'a plus rien à rendre.
+type NavEntry = {
+	label: string;
+	href: string;
+	icon: React.ElementType;
+	readAll?: boolean;
+};
+
+const NAV_ITEMS: NavEntry[] = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-	{ label: "Événements", href: "/events", icon: Calendar },
+	{ label: "Événements", href: "/events", icon: Calendar, readAll: true },
 	{ label: "CRM", href: "/crm", icon: Users },
 	{ label: "Calendrier", href: "/settings/calendar", icon: CalendarDays },
-	{ label: "Analytics", href: "/analytics", icon: BarChart3 },
-] as const;
+	{ label: "Analytics", href: "/analytics", icon: BarChart3, readAll: true },
+];
 
 const NAV_BOTTOM = [
 	{ label: "Paramètres", href: "/settings", icon: Settings },
@@ -122,6 +134,12 @@ export function Sidebar() {
 	const { signOut } = useAuthActions();
 	const profile = useQuery(api.users.getMyProfile);
 
+	// Tant que le profil charge, on n'affiche pas les entrées réservées : mieux
+	// vaut qu'un lien apparaisse une fraction de seconde plus tard que de le
+	// proposer à quelqu'un qui n'y a pas droit.
+	const seesAll = canReadAll(profile);
+	const visibleNavItems = NAV_ITEMS.filter((item) => !item.readAll || seesAll);
+
 	const displayName = profile?.name ?? profile?.email ?? "Utilisateur";
 	const displayEmail = profile?.email ?? "";
 
@@ -192,7 +210,7 @@ export function Sidebar() {
 
 			{/* ── Nav principal ── */}
 			<nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-				{NAV_ITEMS.map((item) => (
+				{visibleNavItems.map((item) => (
 					<NavItem
 						key={item.href}
 						href={item.href}

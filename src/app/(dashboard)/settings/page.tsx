@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { api } from "@/../convex/_generated/api";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { canAdminister } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 // ─── Nav cards data ─────────────────────────────────────────────────────────
@@ -94,9 +95,7 @@ const cardVariants: Variants = {
 export default function SettingsPage() {
 	const profile = useQuery(api.users.getMyProfile);
 
-	const isAdmin =
-		profile?.isAdmin === true ||
-		["admin", "ceo", "ops", "head_of_sales"].includes(profile?.role ?? "");
+	const isAdmin = canAdminister(profile);
 
 	const visibleCards = SETTINGS_CARDS.filter((c) => !c.adminOnly || isAdmin);
 
