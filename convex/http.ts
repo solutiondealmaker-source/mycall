@@ -294,11 +294,69 @@ http.route({
 			return new Response("Invalid JSON", { status: 400 });
 		}
 
+		// Échéancier : chaque prélèvement d'un abonnement produit une facture. Le
+		// PaymentIntent correspondant n'hérite PAS des metadata du lien de départ,
+		// c'est donc l'abonnement qui porte l'identifiant du lead — d'où cet
+		// événement distinct. Sans lui, seule la première mensualité entrerait
+		// dans le CRM.
+		if (event.type === "invoice.payment_succeeded") {
+			const inv = event.data?.object ?? {};
+			const subscriptionId = String(inv.subscription ?? "");
+			const piId = String(inv.payment_intent ?? "");
+			const amount = Number(inv.amount_paid ?? 0);
+
+			if (!subscriptionId || !piId || !amount) {
+				return new Response(null, { status: 200 });
+			}
+
+			const sub = await ctx.runAction(
+				internal.stripe.fetchSubscriptionInternal,
+				{ subscriptionId },
+			);
+			if (!sub?.leadId || !sub.installments) {
+				// Abonnement non créé par l'app : rien à rattacher.
+				return new Response(null, { status: 200 });
+			}
+
+			const applied = await ctx.runMutation(
+				internal.stripe.applyPaymentSucceededInternal,
+				{ leadId: sub.leadId, amountCents: amount, paymentIntentId: piId },
+			);
+
+			const plan = await ctx.runMutation(
+				internal.stripe.recordInstallmentInternal,
+				{
+					subscriptionId,
+					leadId: sub.leadId,
+					installments: sub.installments,
+					amountCents: amount,
+					alreadyApplied: applied.reason === "already_applied",
+				},
+			);
+
+			// Stripe ne sait pas plafonner le nombre de cycles : c'est nous qui
+			// résilions à la dernière échéance, sans quoi le prospect serait
+			// prélevé indéfiniment.
+			if (plan.shouldCancel) {
+				await ctx.runAction(internal.stripe.cancelSubscriptionInternal, {
+					subscriptionId,
+				});
+			}
+
+			return new Response(null, { status: 200 });
+		}
+
 		if (event.type !== "payment_intent.succeeded") {
 			return new Response(null, { status: 200 }); // ignoré, mais acquitté
 		}
 
 		const pi = event.data?.object ?? {};
+
+		// Un PaymentIntent issu d'une facture d'abonnement est déjà traité
+		// ci-dessus : l'ignorer ici évite de compter deux fois la même échéance.
+		if (pi.invoice) {
+			return new Response(null, { status: 200 });
+		}
 		const metadata = (pi.metadata ?? {}) as Record<string, string>;
 		const leadId = metadata.leadId;
 		const amount = Number(pi.amount_received ?? pi.amount ?? 0);

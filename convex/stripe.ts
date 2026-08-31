@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
 	action,
+	internalAction,
 	internalMutation,
 	internalQuery,
 	mutation,
@@ -325,10 +326,13 @@ export const createPaymentLink = action({
 		leadId: v.id("leads"),
 		amountCents: v.number(),
 		label: v.optional(v.string()),
+		// Nombre de mensualités. 1 = paiement unique. >1 = abonnement mensuel
+		// plafonné, résilié automatiquement à la dernière échéance.
+		installments: v.optional(v.number()),
 	},
 	handler: async (
 		ctx,
-		{ leadId, amountCents, label },
+		{ leadId, amountCents, label, installments },
 	): Promise<{ url: string }> => {
 		const me = await ctx.runQuery(
 			internal.googleHelpers.getCurrentUserInternal,
@@ -373,24 +377,47 @@ export const createPaymentLink = action({
 			);
 		}
 
-		const name = (label ?? "Prestation").trim().slice(0, 120) || "Prestation";
+		const n = Math.round(installments ?? 1);
+		if (!Number.isFinite(n) || n < 1 || n > 12) {
+			throw new Error(
+				"Le nombre de mensualités doit être compris entre 1 et 12.",
+			);
+		}
 
-		// 1. Prix ponctuel (produit créé à la volée)
+		const baseName =
+			(label ?? "Prestation").trim().slice(0, 110) || "Prestation";
+		const name = n > 1 ? `${baseName} (${n}× mensuel)` : baseName;
+
+		// `amountCents` est le montant PAR échéance : c'est ce que le prospect voit
+		// prélevé chaque mois, et ce que l'interface demande de saisir.
 		const price = await stripePost(cfg.key, "/prices", {
 			currency: cfg.currency,
 			unit_amount: String(Math.round(amountCents)),
 			"product_data[name]": name,
+			...(n > 1 ? { "recurring[interval]": "month" } : {}),
 		});
 
-		// 2. Payment Link (n'expire pas).
-		// `payment_intent_data[metadata]` est propagé au PaymentIntent créé lors
-		// du paiement : c'est ce qui permet au webhook de retrouver le lead
-		// (les metadata du lien lui-même n'arrivent pas dans l'événement).
+		// Payment Link (n'expire pas).
+		//
+		// Paiement unique : `payment_intent_data[metadata]` étiquette le
+		// PaymentIntent, ce qui permet au webhook de retrouver le lead.
+		//
+		// Échéancier : le prospect souscrit un abonnement mensuel. Les
+		// prélèvements suivants créent de NOUVEAUX PaymentIntents qui n'héritent
+		// pas de ces metadata — d'où `subscription_data[metadata]`, porté par
+		// l'abonnement lui-même et lisible à chaque facture. Stripe ne sait pas
+		// limiter le nombre de cycles ici : c'est notre webhook qui compte les
+		// échéances et résilie l'abonnement à la dernière.
 		const link = await stripePost(cfg.key, "/payment_links", {
 			"line_items[0][price]": String(price.id),
 			"line_items[0][quantity]": "1",
 			"metadata[leadId]": leadId,
-			"payment_intent_data[metadata][leadId]": leadId,
+			...(n > 1
+				? {
+						"subscription_data[metadata][leadId]": leadId,
+						"subscription_data[metadata][installments]": String(n),
+					}
+				: { "payment_intent_data[metadata][leadId]": leadId }),
 		});
 
 		const url = String(link.url ?? "");
@@ -399,8 +426,9 @@ export const createPaymentLink = action({
 		await ctx.runMutation(internal.stripe.logPaymentLinkInternal, {
 			leadId,
 			url,
-			amountCents,
-			label: name,
+			amountCents: amountCents * n,
+			label:
+				n > 1 ? `${name} — ${n} × ${(amountCents / 100).toFixed(2)} €` : name,
 			userId: me._id,
 		});
 
@@ -419,5 +447,116 @@ export const getLeadOwnersInternal = internalQuery({
 			closerUserId: lead.closerUserId ?? null,
 			setterUserId: lead.setterUserId ?? null,
 		};
+	},
+});
+
+// ============================================================
+// ÉCHÉANCIERS — abonnement plafonné
+// ============================================================
+
+// Enregistre une échéance encaissée et indique s'il faut résilier.
+//
+// Le compteur vit dans notre base, pas dans les metadata Stripe : c'est nous
+// qui décidons quand l'abonnement s'arrête. La garde d'idempotence est le
+// paymentIntent, déjà utilisée par applyPaymentSucceededInternal — un renvoi
+// de webhook ne peut donc pas incrémenter deux fois.
+export const recordInstallmentInternal = internalMutation({
+	args: {
+		subscriptionId: v.string(),
+		leadId: v.string(),
+		installments: v.number(),
+		amountCents: v.number(),
+		alreadyApplied: v.boolean(),
+	},
+	handler: async (
+		ctx,
+		{ subscriptionId, leadId, installments, amountCents, alreadyApplied },
+	): Promise<{ shouldCancel: boolean; paidCount: number }> => {
+		const existing = await ctx.db
+			.query("paymentPlans")
+			.withIndex("by_subscription", (q) =>
+				q.eq("stripeSubscriptionId", subscriptionId),
+			)
+			.first();
+
+		// Renvoi d'un webhook déjà traité : on ne recompte pas, mais on redonne la
+		// consigne de résiliation si le plan est arrivé à son terme — le premier
+		// appel a pu échouer côté Stripe.
+		if (alreadyApplied) {
+			const paid = existing?.paidCount ?? 0;
+			return { shouldCancel: paid >= installments, paidCount: paid };
+		}
+
+		const now = Date.now();
+		if (!existing) {
+			await ctx.db.insert("paymentPlans", {
+				stripeSubscriptionId: subscriptionId,
+				leadId: leadId as never,
+				installments,
+				paidCount: 1,
+				amountPerInstallmentCents: amountCents,
+				createdAt: now,
+				completedAt: installments <= 1 ? now : undefined,
+			});
+			return { shouldCancel: installments <= 1, paidCount: 1 };
+		}
+
+		const paidCount = existing.paidCount + 1;
+		const done = paidCount >= existing.installments;
+		await ctx.db.patch(existing._id, {
+			paidCount,
+			completedAt: done ? now : undefined,
+		});
+		return { shouldCancel: done, paidCount };
+	},
+});
+
+// Lecture d'un abonnement + résiliation — appelées par l'httpAction du webhook,
+// qui ne peut pas parler à Stripe sans passer par une action.
+export const fetchSubscriptionInternal = internalAction({
+	args: { subscriptionId: v.string() },
+	handler: async (
+		ctx,
+		{ subscriptionId },
+	): Promise<{ leadId: string | null; installments: number } | null> => {
+		const cfg = await ctx.runQuery(internal.stripe.getSecretKeyInternal, {});
+		if (!cfg) return null;
+		const res = await fetch(`${STRIPE_API}/subscriptions/${subscriptionId}`, {
+			headers: { Authorization: `Bearer ${cfg.key}` },
+		});
+		if (!res.ok) {
+			console.error(
+				`[stripe] lecture abonnement ${subscriptionId} échouée: ${await res.text()}`,
+			);
+			return null;
+		}
+		const sub = (await res.json()) as {
+			metadata?: Record<string, string>;
+		};
+		return {
+			leadId: sub.metadata?.leadId ?? null,
+			installments: Number(sub.metadata?.installments ?? 0) || 0,
+		};
+	},
+});
+
+export const cancelSubscriptionInternal = internalAction({
+	args: { subscriptionId: v.string() },
+	handler: async (ctx, { subscriptionId }): Promise<void> => {
+		const cfg = await ctx.runQuery(internal.stripe.getSecretKeyInternal, {});
+		if (!cfg) return;
+		const res = await fetch(`${STRIPE_API}/subscriptions/${subscriptionId}`, {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${cfg.key}` },
+		});
+		if (!res.ok) {
+			// Échec bruyant : sans résiliation, le prospect serait prélevé une
+			// quatrième fois. Le renvoi de webhook suivant réessaiera.
+			console.error(
+				`[stripe] RÉSILIATION ÉCHOUÉE ${subscriptionId}: ${await res.text()}`,
+			);
+			return;
+		}
+		console.log(`[stripe] abonnement ${subscriptionId} résilié (plan terminé)`);
 	},
 });

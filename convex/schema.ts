@@ -574,6 +574,21 @@ export default defineSchema({
 	// ===========================================================
 
 	// Log de toutes les notifications sortantes (email, etc.)
+	// Échéanciers Stripe : un abonnement plafonné à N prélèvements.
+	// Stripe ne sait pas limiter le nombre de cycles d'un Payment Link ; on
+	// compte donc nous-mêmes et on résilie à la dernière échéance. Le compteur
+	// vit ici plutôt que dans les metadata Stripe : c'est notre base qui décide
+	// quand s'arrêter, pas une valeur qu'un tiers pourrait modifier.
+	paymentPlans: defineTable({
+		stripeSubscriptionId: v.string(),
+		leadId: v.id("leads"),
+		installments: v.number(),
+		paidCount: v.number(),
+		amountPerInstallmentCents: v.number(),
+		createdAt: v.number(),
+		completedAt: v.optional(v.number()),
+	}).index("by_subscription", ["stripeSubscriptionId"]),
+
 	notificationLogs: defineTable({
 		type: v.union(
 			v.literal("email_confirmation"),

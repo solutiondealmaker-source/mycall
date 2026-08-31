@@ -29,6 +29,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { canAdminister } from "@/lib/roles";
 import { cn, formatRelativeDate } from "@/lib/utils";
@@ -76,6 +83,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 	const [payOpen, setPayOpen] = useState(false);
 	const [payAmount, setPayAmount] = useState("");
 	const [payLabel, setPayLabel] = useState("");
+	const [payCount, setPayCount] = useState<number>(1);
 	const [payLoading, setPayLoading] = useState(false);
 	const [payUrl, setPayUrl] = useState<string | null>(null);
 
@@ -91,6 +99,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 				leadId,
 				amountCents: Math.round(euros * 100),
 				label: payLabel.trim() || undefined,
+				installments: payCount,
 			});
 			setPayUrl(res.url);
 			toast.success("Lien de paiement généré");
@@ -523,19 +532,55 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 						</div>
 					) : (
 						<div className="space-y-3">
-							<div className="space-y-1.5">
-								<Label htmlFor="pay-amount" className="text-xs">
-									Montant (€)
-								</Label>
-								<Input
-									id="pay-amount"
-									inputMode="decimal"
-									value={payAmount}
-									onChange={(e) => setPayAmount(e.target.value)}
-									placeholder="1500"
-									className="h-10"
-								/>
+							<div className="grid grid-cols-[1fr_120px] gap-3">
+								<div className="space-y-1.5">
+									<Label htmlFor="pay-amount" className="text-xs">
+										{payCount > 1 ? "Montant par mois (€)" : "Montant (€)"}
+									</Label>
+									<Input
+										id="pay-amount"
+										inputMode="decimal"
+										value={payAmount}
+										onChange={(e) => setPayAmount(e.target.value)}
+										placeholder="1500"
+										className="h-10"
+									/>
+								</div>
+								<div className="space-y-1.5">
+									<Label htmlFor="pay-count" className="text-xs">
+										En combien de fois
+									</Label>
+									<Select
+										value={String(payCount)}
+										onValueChange={(v) => setPayCount(Number(v))}
+									>
+										<SelectTrigger id="pay-count" className="h-10 w-full">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{[1, 2, 3, 4, 6, 10, 12].map((n) => (
+												<SelectItem key={n} value={String(n)}>
+													{n === 1 ? "1 fois" : `${n} fois`}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
 							</div>
+
+							{payCount > 1 && (
+								<p className="text-xs text-[var(--ink-muted)] leading-relaxed rounded-[var(--radius-sm)] bg-[var(--surface-raised)] px-3 py-2">
+									Prélèvement mensuel automatique.{" "}
+									<strong className="text-[var(--ink)]">
+										Total&nbsp;:{" "}
+										{payAmount.trim()
+											? `${(Number.parseFloat(payAmount.replace(",", ".")) * payCount || 0).toFixed(2)} €`
+											: "—"}
+									</strong>{" "}
+									sur {payCount} mois. Le dernier prélèvement clôt l'abonnement
+									automatiquement.
+								</p>
+							)}
 							<div className="space-y-1.5">
 								<Label htmlFor="pay-label" className="text-xs">
 									Intitulé (optionnel)
