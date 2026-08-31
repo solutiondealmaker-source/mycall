@@ -1570,12 +1570,20 @@ export const setOutcome = mutation({
 				args.issue === "perdu" ? args.issueLossReasonId : undefined,
 			issueAmountCents:
 				args.issue === "gagne" ? args.issueAmountCents : undefined,
+			// Origine "manual" : un paiement Stripe arrivant ensuite ne viendra pas
+			// s'ajouter à ce montant. Le chiffre saisi par le closer fait foi.
+			issueAmountSource:
+				args.issue === "gagne" && args.issueAmountCents !== undefined
+					? ("manual" as const)
+					: undefined,
 			issueOfferId: args.issue === "gagne" ? args.issueOfferId : undefined,
 			cancelReason: args.tenue === "annule" ? args.cancelReason : undefined,
 			...statusPatch,
 		});
 
-		// Sync montantContracte on the lead
+		// Report du montant sur le lead. Ici on REMPLACE, là où un paiement Stripe
+		// cumule (stripe.ts) : le closer déclare la valeur de l'affaire, il ne
+		// rapporte pas un encaissement de plus.
 		if (args.issue === "gagne" && args.issueAmountCents) {
 			await ctx.db.patch(booking.leadId, {
 				montantContracte: args.issueAmountCents,

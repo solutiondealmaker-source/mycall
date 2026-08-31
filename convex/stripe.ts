@@ -187,11 +187,21 @@ export const applyPaymentSucceededInternal = internalMutation({
 		}
 
 		const now = Date.now();
+
+		// Les montants se CUMULENT. Un paiement en plusieurs fois, ou un acompte
+		// suivi d'un solde, produit plusieurs paymentIntents pour un même lead :
+		// remplacer le montant ne laisserait que la dernière échéance.
+		const previous =
+			(lead as { montantContracte?: number }).montantContracte ?? 0;
+		const converted = (lead as { convertedAt?: number }).convertedAt;
+
 		await ctx.db.patch(leadId as never, {
 			status: "gagne" as const,
 			phase: "gagne",
-			montantContracte: amountCents,
-			convertedAt: now,
+			montantContracte: previous + amountCents,
+			// La date de conversion est celle du PREMIER paiement : c'est là que
+			// l'affaire a été gagnée, pas à la dernière échéance.
+			convertedAt: converted ?? now,
 			lastInteractionAt: now,
 		});
 
@@ -223,14 +233,22 @@ export const applyPaymentSucceededInternal = internalMutation({
 			const target = (past.length > 0 ? past : bookings).reduce((a, b) =>
 				b.startTime > a.startTime ? b : a,
 			);
-			// On ne réécrit pas un RDV déjà marqué gagné : le montant saisi par le
-			// closer fait foi et le CA le compte déjà.
+
 			if (target.issue !== "gagne") {
 				await ctx.db.patch(target._id, {
 					issue: "gagne" as const,
 					issueAmountCents: amountCents,
+					issueAmountSource: "stripe" as const,
+				});
+			} else if (target.issueAmountSource === "stripe") {
+				// Le montant vient d'un paiement précédent : on cumule, sinon les
+				// échéances suivantes n'entreraient jamais dans le chiffre d'affaires.
+				await ctx.db.patch(target._id, {
+					issueAmountCents: (target.issueAmountCents ?? 0) + amountCents,
 				});
 			}
+			// Sinon, un closer a saisi ce montant à la main : il fait foi, on n'y
+			// touche pas. Le total encaissé reste visible sur la fiche lead.
 		}
 		return { ok: true, reason: "applied" };
 	},

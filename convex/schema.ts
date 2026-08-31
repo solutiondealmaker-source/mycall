@@ -333,6 +333,12 @@ export default defineSchema({
 		),
 		issueLossReasonId: v.optional(v.id("lossReasons")),
 		issueAmountCents: v.optional(v.number()),
+		// Origine du montant : saisi par un closer, ou posé par un paiement Stripe.
+		// Un paiement suivant ne cumule que sur un montant d'origine "stripe" —
+		// le chiffre d'un closer fait foi et ne doit jamais être gonflé.
+		issueAmountSource: v.optional(
+			v.union(v.literal("stripe"), v.literal("manual")),
+		),
 		issueOfferId: v.optional(v.string()), // placeholder — offers hors scope V1
 
 		// Tokens publics (cancel / reschedule sans auth)
