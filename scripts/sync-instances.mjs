@@ -41,11 +41,67 @@ function loadInstances() {
 	if (!existsSync(CONFIG)) {
 		console.error(`Fichier introuvable : ${CONFIG}`);
 		console.error(
-			'Crée-le sur ce modèle :\n[{ "name": "Protocole Renaître", "path": "../protocole-renaitre" }]',
+			"Crée-le sur ce modèle :\n" +
+				JSON.stringify(
+					[
+						{
+							name: "Protocole Renaître",
+							path: "../protocole-renaitre",
+							convexDeployment: "watchful-donkey-853",
+							vercelProject: "protocole-renaitre",
+						},
+					],
+					null,
+					2,
+				),
 		);
 		process.exit(1);
 	}
 	return JSON.parse(readFileSync(CONFIG, "utf8"));
+}
+
+// Vérifie que le dossier vise bien SA base et SON projet Vercel.
+//
+// Ce contrôle existe parce que l'inverse est arrivé : un outil en ligne de
+// commande a réécrit le .env.local d'une instance en y mettant le déploiement
+// Convex de l'instance principale. Rien n'a cassé — le code était identique et
+// la production lit ses variables chez Vercel, pas dans ce fichier — mais la
+// commande suivante aurait écrit dans la mauvaise base. Un envoi mal dirigé
+// doit s'arrêter avant de partir, pas se découvrir après.
+function assertIdentity(inst, path) {
+	const problems = [];
+
+	if (inst.convexDeployment) {
+		const envFile = join(path, ".env.local");
+		if (!existsSync(envFile)) {
+			problems.push(".env.local absent");
+		} else {
+			const env = readFileSync(envFile, "utf8");
+			const line =
+				env.split("\n").find((l) => l.startsWith("CONVEX_DEPLOYMENT=")) ?? "";
+			if (!line.includes(inst.convexDeployment)) {
+				problems.push(
+					`CONVEX_DEPLOYMENT ne vise pas ${inst.convexDeployment}\n       trouvé : ${line.trim() || "(absent)"}`,
+				);
+			}
+		}
+	}
+
+	if (inst.vercelProject) {
+		const linkFile = join(path, ".vercel", "project.json");
+		if (!existsSync(linkFile)) {
+			problems.push(".vercel/project.json absent — instance non liée");
+		} else {
+			const link = JSON.parse(readFileSync(linkFile, "utf8"));
+			if (link.projectName && link.projectName !== inst.vercelProject) {
+				problems.push(
+					`projet Vercel = ${link.projectName}, attendu ${inst.vercelProject}`,
+				);
+			}
+		}
+	}
+
+	return problems;
 }
 
 // ── Contrôles préalables sur le dépôt source ────────────────────────────────
@@ -134,11 +190,33 @@ for (const inst of instances) {
 			continue;
 		}
 
+		// Contrôle d'identité juste avant l'envoi : c'est le dernier moment où
+		// une erreur de cible est encore sans conséquence.
+		const before2 = assertIdentity(inst, path);
+		if (before2.length > 0) {
+			failures++;
+			console.log(`   ✗ cible incohérente, envoi annulé :`);
+			for (const p of before2) console.log(`     - ${p}`);
+			continue;
+		}
+
 		console.log("   · envoi des fonctions Convex…");
 		run("bunx", ["convex", "dev", "--once"], path);
 
 		console.log("   · déploiement Vercel…");
 		run("bunx", ["vercel", "--prod", "--yes"], path);
+
+		// Les CLI Convex et Vercel réécrivent .env.local. Si l'une d'elles a
+		// changé la cible en passant, on le dit tout de suite plutôt que de le
+		// découvrir à la prochaine commande.
+		const after2 = assertIdentity(inst, path);
+		if (after2.length > 0) {
+			failures++;
+			console.log("   ⚠ le déploiement a modifié l'identité de l'instance :");
+			for (const p of after2) console.log(`     - ${p}`);
+			console.log("     → corrige .env.local avant toute autre commande.");
+			continue;
+		}
 
 		console.log("   ✓ en ligne");
 	} catch (err) {
