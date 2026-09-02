@@ -263,6 +263,10 @@ export default defineSchema({
 		// RÃ©sultat commercial
 		montantContracte: v.optional(v.number()), // en centimes
 		convertedAt: v.optional(v.number()),
+		// Désinscription du nurturing. Obligatoire légalement : un email
+		// commercial doit porter un lien de désabonnement qui fonctionne.
+		emailOptOutAt: v.optional(v.number()),
+		unsubToken: v.optional(v.string()),
 
 		lastInteractionAt: v.optional(v.number()),
 	})
@@ -579,6 +583,60 @@ export default defineSchema({
 	// compte donc nous-mÃªmes et on rÃ©silie Ã  la derniÃ¨re Ã©chÃ©ance. Le compteur
 	// vit ici plutÃ´t que dans les metadata Stripe : c'est notre base qui dÃ©cide
 	// quand s'arrÃªter, pas une valeur qu'un tiers pourrait modifier.
+	// ============================================================
+	// NURTURING — séquences d'emails programmés
+	// ============================================================
+
+	emailSequences: defineTable({
+		name: v.string(),
+		// Ce qui inscrit un lead. "manual" = bouton dans le CRM.
+		trigger: v.union(
+			v.literal("manual"),
+			v.literal("abandoned_form"),
+			v.literal("no_show"),
+			v.literal("before_booking"),
+		),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_trigger", ["trigger", "isActive"]),
+
+	sequenceSteps: defineTable({
+		sequenceId: v.id("emailSequences"),
+		order: v.number(),
+		// Décalage en minutes par rapport à l'ancre de l'inscription.
+		// Négatif = AVANT (nurturing pré-RDV : -2880 = 2 jours avant).
+		offsetMinutes: v.number(),
+		subject: v.string(),
+		body: v.string(),
+	}).index("by_sequence", ["sequenceId", "order"]),
+
+	sequenceEnrollments: defineTable({
+		sequenceId: v.id("emailSequences"),
+		leadId: v.id("leads"),
+		bookingId: v.optional(v.id("bookings")),
+		// Instant de référence des décalages : l'inscription, ou le début du RDV
+		// pour une séquence pré-rendez-vous.
+		anchorAt: v.number(),
+		status: v.union(
+			v.literal("active"),
+			v.literal("done"),
+			v.literal("stopped"),
+		),
+		stopReason: v.optional(v.string()),
+		enrolledAt: v.number(),
+	})
+		.index("by_status", ["status"])
+		.index("by_lead", ["leadId"]),
+
+	// Une ligne par envoi effectué. C'est la garde qui empêche qu'un lead
+	// reçoive deux fois la même étape si un cron se chevauche.
+	sequenceSends: defineTable({
+		enrollmentId: v.id("sequenceEnrollments"),
+		stepId: v.id("sequenceSteps"),
+		sentAt: v.number(),
+	}).index("by_enrollment", ["enrollmentId", "stepId"]),
+
 	paymentPlans: defineTable({
 		stripeSubscriptionId: v.string(),
 		leadId: v.id("leads"),
@@ -598,6 +656,7 @@ export default defineSchema({
 			v.literal("email_reschedule"),
 			v.literal("email_invitation"),
 			v.literal("email_abandoned_lead"),
+			v.literal("email_sequence"),
 		),
 		bookingId: v.optional(v.id("bookings")),
 		leadId: v.optional(v.id("leads")),

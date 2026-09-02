@@ -25,6 +25,7 @@ export const insertLogRow = internalMutation({
 			v.literal("email_reschedule"),
 			v.literal("email_invitation"),
 			v.literal("email_abandoned_lead"),
+			v.literal("email_sequence"),
 		),
 		bookingId: v.optional(v.string()),
 		leadId: v.optional(v.string()),

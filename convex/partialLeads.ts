@@ -226,5 +226,15 @@ export const checkPartialLeadAbandoned = internalMutation({
 		await ctx.scheduler.runAfter(0, internal.emails.sendAbandonedLead, {
 			partialLeadId,
 		});
+
+		// Le prospect entre aussi dans les séquences de nurturing déclenchées par
+		// un formulaire abandonné, s'il en existe une active.
+		if (pl.promotedLeadId) {
+			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
+				trigger: "abandoned_form" as const,
+				leadId: pl.promotedLeadId,
+				anchorAt: now,
+			});
+		}
 	},
 });

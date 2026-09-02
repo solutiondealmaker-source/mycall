@@ -79,4 +79,15 @@ crons.daily(
 	{},
 );
 
+// Nurturing : envoie les étapes de séquence arrivées à échéance et arrête les
+// inscriptions devenues sans objet (lead gagné, désabonné, séquence désactivée).
+// 15 min : un décalage d'un quart d'heure sur une relance à J+3 est sans effet,
+// et ça divise par quatre le travail d'un cron horaire.
+crons.interval(
+	"processSequences",
+	{ minutes: 15 },
+	internal.sequences.processDue,
+	{},
+);
+
 export default crons;

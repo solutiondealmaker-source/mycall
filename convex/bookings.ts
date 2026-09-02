@@ -1581,6 +1581,16 @@ export const setOutcome = mutation({
 			...statusPatch,
 		});
 
+		// Un no-show dÈclenche la sÈquence de reprogrammation, s'il en existe une.
+		if (args.tenue === "no_show") {
+			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
+				trigger: "no_show" as const,
+				leadId: booking.leadId,
+				bookingId: args.bookingId,
+				anchorAt: now,
+			});
+		}
+
 		// Report du montant sur le lead. Ici on REMPLACE, l√† o√π un paiement Stripe
 		// cumule (stripe.ts) : le closer d√©clare la valeur de l'affaire, il ne
 		// rapporte pas un encaissement de plus.

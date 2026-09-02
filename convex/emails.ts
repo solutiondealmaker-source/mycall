@@ -31,6 +31,7 @@ import {
 	invitationTemplate,
 	reminderTemplate,
 	rescheduleTemplate,
+	sequenceStepTemplate,
 } from "./lib/emailTemplates";
 import { buildIcs, googleCalendarUrl, outlookCalendarUrl } from "./lib/ics";
 
@@ -161,7 +162,8 @@ type LogType =
 	| "email_cancellation"
 	| "email_reschedule"
 	| "email_invitation"
-	| "email_abandoned_lead";
+	| "email_abandoned_lead"
+	| "email_sequence";
 
 async function logEmail(
 	ctx: ActionCtx,
@@ -634,5 +636,53 @@ export const sendAbandonedLead = internalAction({
 				result,
 			});
 		}
+	},
+});
+
+// ============================================================
+// sendSequenceStep — nurturing
+// ============================================================
+
+export const sendSequenceStep = internalAction({
+	args: {
+		leadId: v.id("leads"),
+		subject: v.string(),
+		body: v.string(),
+	},
+	handler: async (ctx, { leadId, subject, body }) => {
+		const lead = await ctx.runQuery(
+			internal.sequences.getLeadForSequenceInternal,
+			{ leadId },
+		);
+		// Double garde : le lead a pu se désabonner entre la planification de
+		// l'étape et son envoi.
+		if (!lead?.email || lead.optedOut) return;
+
+		const token = await ctx.runMutation(
+			internal.sequences.getOrCreateUnsubTokenInternal,
+			{ leadId },
+		);
+		if (!token) return;
+
+		// Personnalisation minimale : le prénom, seule variable dont on est sûr.
+		const firstName = lead.firstName ?? "";
+		const fill = (s: string) =>
+			s.replace(/\{\{\s*prenom\s*\}\}/gi, firstName).trim();
+
+		const result = await resendSend({
+			to: lead.email,
+			subject: fill(subject),
+			html: sequenceStepTemplate({
+				bodyText: fill(body),
+				unsubscribeUrl: `${SITE_URL}/unsubscribe/${token}`,
+			}),
+		});
+
+		await logEmail(ctx, {
+			type: "email_sequence",
+			leadId,
+			recipient: lead.email,
+			result,
+		});
 	},
 });

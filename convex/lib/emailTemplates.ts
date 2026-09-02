@@ -568,3 +568,42 @@ ${ctaButton("Ouvrir le CRM", crmUrl)}`;
 
 	return baseLayout(content);
 }
+
+// ============================================================
+// 8. Étape de séquence — nurturing
+// ============================================================
+//
+// Contrairement aux autres, cet email est COMMERCIAL et non transactionnel :
+// le lien de désabonnement y est obligatoire, pas décoratif.
+
+export interface SequenceStepArgs {
+	bodyText: string;
+	unsubscribeUrl: string;
+}
+
+export function sequenceStepTemplate(args: SequenceStepArgs): string {
+	const { bodyText, unsubscribeUrl } = args;
+
+	// Le corps est saisi en texte simple dans l'éditeur : on échappe le HTML
+	// (une apostrophe ou un chevron ne doit pas casser le rendu) puis on
+	// reconstitue les paragraphes.
+	const paragraphs = escapeHtml(bodyText)
+		.split(/\n{2,}/)
+		.map(
+			(p) =>
+				`<p style="margin:0 0 16px;font-size:15px;color:#334155;line-height:1.7">${p.replace(/\n/g, "<br>")}</p>`,
+		)
+		.join("\n");
+
+	const content = `
+${paragraphs}
+
+<div style="margin:32px 0 0;padding:16px 0 0;border-top:1px solid #E2E8F0;text-align:center">
+  <p style="margin:0;font-size:12px;color:#94A3B8;line-height:1.6">
+    Vous recevez cet email suite à votre demande de rendez-vous.<br>
+    <a href="${unsubscribeUrl}" style="color:#94A3B8;text-decoration:underline">Ne plus recevoir ces emails</a>
+  </p>
+</div>`;
+
+	return baseLayout(content);
+}

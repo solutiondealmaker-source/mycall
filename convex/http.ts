@@ -377,4 +377,43 @@ http.route({
 	}),
 });
 
+// Désabonnement du nurturing. Servi depuis le domaine Convex plutôt que par
+// Next : un lien de désinscription doit répondre même pendant un redéploiement
+// du site, et rester valable indéfiniment.
+http.route({
+	pathPrefix: "/unsubscribe/",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const token = new URL(request.url).pathname.split("/").pop() ?? "";
+		const ok = token
+			? await ctx.runMutation(internal.sequences.unsubscribeByTokenInternal, {
+					token,
+				})
+			: false;
+
+		const message = ok
+			? "C'est fait. Vous ne recevrez plus nos emails de suivi."
+			: "Ce lien n'est plus valide. Vous êtes peut-être déjà désabonné.";
+
+		const page = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Désabonnement</title>
+</head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F8F4EC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#201C16">
+<div style="max-width:420px;padding:40px;text-align:center">
+<p style="font-size:17px;line-height:1.6;margin:0">${message}</p>
+</div>
+</body>
+</html>`;
+
+		return new Response(page, {
+			status: 200,
+			headers: { "Content-Type": "text/html; charset=utf-8" },
+		});
+	}),
+});
+
 export default http;

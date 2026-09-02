@@ -8,6 +8,7 @@ import {
 	ChevronRight,
 	Clock,
 	Plug,
+	Send,
 	Tags,
 	User,
 	Users,
@@ -41,6 +42,13 @@ const SETTINGS_CARDS = [
 		title: "Calendrier Google",
 		description: "Connecte et synchronise tes calendriers",
 		adminOnly: false,
+	},
+	{
+		href: "/settings/sequences",
+		icon: Send,
+		title: "Séquences",
+		description: "Emails de nurturing programmés",
+		adminOnly: true,
 	},
 	{
 		href: "/settings/notifications",

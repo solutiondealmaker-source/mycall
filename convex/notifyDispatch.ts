@@ -27,6 +27,21 @@ export const dispatchBookingCreated = internalMutation({
 		await ctx.scheduler.runAfter(0, internal.emails.sendHostNotification, {
 			bookingId,
 		});
+
+		// Nurturing pré-rendez-vous : l'ancre est le DÉBUT du rendez-vous, pas
+		// l'instant présent. Les étapes portent donc des décalages négatifs
+		// (« 2 jours avant », « la veille ») et s'enclenchent à l'approche de la
+		// date. C'est le levier principal contre les no-show : un prospect qui a
+		// reçu deux messages utiles entre-temps se souvient du rendez-vous.
+		const booking = await ctx.db.get(bookingId);
+		if (booking?.leadId) {
+			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
+				trigger: "before_booking" as const,
+				leadId: booking.leadId,
+				bookingId,
+				anchorAt: booking.startTime,
+			});
+		}
 	},
 });
 
