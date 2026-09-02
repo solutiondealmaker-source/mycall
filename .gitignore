@@ -55,3 +55,6 @@ onboard.config.json
 
 .vercel
 .env*
+
+# Chemins locaux des instances secondaires (propre à ma machine)
+instances.json

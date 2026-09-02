@@ -1,0 +1,18 @@
+# Normalise les fins de ligne dans le dépôt.
+#
+# Sans ce fichier, git convertit en CRLF à la sortie sur Windows et signale
+# ensuite chaque fichier comme modifié. Deux instances du même code
+# apparaissaient alors intégralement différentes, ce qui masque les vraies
+# différences — précisément ce qu'on ne veut pas quand on synchronise des
+# instances entre elles.
+* text=auto eol=lf
+
+# Binaires : jamais de conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
