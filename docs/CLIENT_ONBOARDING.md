@@ -1,178 +1,156 @@
-# Onboarding d'une instance — runbook
+# Livrer une instance à un client
 
-Modèle : **une instance isolée par espace** (son Convex + son Vercel + son domaine).
-Chaque instance a son **admin**, et ses données sont **100 % cloisonnées** des autres.
-
-Ce runbook sert dans **deux cas**, avec exactement les mêmes étapes :
-
-- **Un client** à qui tu livres l'outil → c'est lui l'admin de son espace.
-- **Un de tes propres business** (plusieurs activités, plusieurs marques) → une
-  instance par business, chacune avec son domaine et ses leads.
-
-> 💡 **Plusieurs business à toi ?** Tu peux réutiliser **le même email** comme
-> admin sur toutes tes instances : ce sont des bases séparées, il n'y a aucun
-> conflit. Et comme chaque instance a son propre domaine, tu peux rester
-> **connecté aux deux en même temps** dans le même navigateur (les sessions sont
-> liées au domaine). Pas besoin d'adresses email différentes.
-
-Durée : ~15–20 min par instance une fois les prérequis (Google, Resend) faits une seule fois.
+Un client = une instance : son domaine, sa base, ses leads. Rien n'est partagé
+entre deux clients, et aucun client ne peut déployer — c'est le point.
 
 ---
 
-## Prérequis (une seule fois, partagés entre tous les clients)
+## 1. Le modèle
 
-1. **Resend — domaine vérifié.** En sandbox (`onboarding@resend.dev`), les emails
-   n'arrivent qu'à ton compte. Vérifie un domaine dans Resend → Domains (SPF/DKIM)
-   pour que confirmations + reset password arrivent à **n'importe quel** client.
-2. **Google Cloud — client OAuth.** Réutilise le même client OAuth pour tous, OU
-   un par client. Dans les deux cas : **il faudra ajouter l'URL `convex.site` de
-   CHAQUE nouvelle instance** dans les *Authorized redirect URIs* (voir étape 4).
+```
+        Dépôt GitHub privé (moi seul y pousse)
+                    │
+    ┌───────────────┼───────────────┬───────────────┐
+  Mycall       Protocole        Client A        Client B
+ projet Vercel  projet Vercel   projet Vercel   projet Vercel   ← chez moi
+      │              │               │               │
+   sa base        sa base        sa base         sa base        ← chez le client
+```
+
+| Composant | Qui possède | Pourquoi |
+|---|---|---|
+| Le code (GitHub) | **moi** | un client ne déploie pas ; les correctifs partent de chez moi |
+| Le projet Vercel | **moi** | je garde la main sur la mise en ligne |
+| La base Convex | **le client** | ses données lui appartiennent — et ses coûts aussi |
+| Le domaine | le client | il pointe vers mon projet Vercel par un CNAME |
+
+**Une seule poussée sur GitHub met à jour tous les clients.** Chaque projet
+Vercel se reconstruit, envoie les fonctions à *sa* base, et se redéploie. Je n'ai
+aucun dossier client sur ma machine.
+
+### Ce que le client doit fournir
+
+1. Un **compte Convex** (gratuit pour commencer) et une **clé de déploiement de
+   production** générée depuis son tableau de bord.
+2. Un **domaine** sur lequel poser un CNAME.
+3. Ses clés **Resend** et **Stripe** s'il veut ses propres emails et paiements.
+
+C'est tout. Il ne voit jamais le code.
 
 ---
 
-## Étapes par client
+## 2. Créer une instance client
 
-### 1. Nouveau dossier + install
-```bash
-git clone <repo> client-<nom>
-cd client-<nom>
-bun install
+### a. Sa base Convex
+
+Le client, depuis son compte : **Convex → New Project**, puis
+**Settings → Deploy keys → Generate production deploy key**. Il me transmet
+cette clé — elle ne donne accès qu'à ce projet.
+
+> ⚠️ Une clé de déploiement est un secret. Elle se transmet par un canal privé,
+> jamais par email en clair, et jamais dans le dépôt.
+
+### b. Le projet Vercel
+
+Sur mon compte : **Add New → Project → importer le dépôt GitHub**.
+Le même dépôt sert tous les clients ; ce sont les variables qui diffèrent.
+
+**Build Command** (à surcharger dans les réglages du projet) :
+
+```
+bunx convex deploy --cmd 'bun run build'
 ```
 
-### 2. Wizard de setup
-```bash
-bun run setup
-```
-Le wizard :
-- provisionne un **nouveau déploiement Convex** (base isolée) ;
-- génère les **clés Auth** (JWT/JWKS) ;
-- configure **Google OAuth** + **Resend** ;
-- demande l'**email admin du client** → le met dans `SIGNUP_ALLOWED_EMAILS`
-  (⇒ ce client, et lui seul, pourra s'inscrire et sera **admin**) ;
-- écrit `.env.local`.
+C'est cette ligne qui envoie les fonctions Convex à la base du client avant de
+compiler son site. Elle injecte aussi `NEXT_PUBLIC_CONVEX_URL` toute seule.
 
-Note l'URL Convex affichée : `https://<nouveau>.convex.cloud` et sa jumelle
-`.convex.site`.
+**Variables d'environnement du projet** (Production) :
 
-### 3. (Recommandé) Confirmer l'allowlist
-```bash
-bunx convex env set SIGNUP_ALLOWED_EMAILS "owner-client@domaine.com"
-```
-Plusieurs emails = séparés par des virgules.
-
-### 4. Google — enregistrer le redirect URI de CETTE instance ⚠️
-Chaque Convex a une URL `convex.site` différente. Dans **Google Cloud Console →
-Credentials → ton client OAuth → Authorized redirect URIs**, ajoute :
-```
-https://<nouveau>.convex.site/google/callback
-```
-Sans ça, la connexion Google Calendar échoue pour ce client.
-
-### 5. Déployer le frontend sur Vercel
-```bash
-bunx vercel link      # nouveau projet, nom en minuscules
-bunx vercel --prod
-```
-Puis pose les variables d'env du projet Vercel (dashboard → Settings → Env
-Variables, ou CLI) — **valeurs prises dans le `.env.local` généré** :
-
-| Variable | Source |
+| Variable | Valeur |
 |---|---|
-| `NEXT_PUBLIC_CONVEX_URL` | `.env.local` |
-| `NEXT_PUBLIC_CONVEX_SITE_URL` | `.env.local` |
-| `NEXT_PUBLIC_APP_URL` | domaine du client (étape 6) — sinon les liens `/book`<br>copiés portent l'URL technique `*.vercel.app` |
-| `GOOGLE_CLIENT_ID` | `.env.local` |
-| `GOOGLE_OAUTH_STATE_SECRET` | `.env.local` |
+| `CONVEX_DEPLOY_KEY` | la clé fournie par le client |
+| `NEXT_PUBLIC_APP_URL` | `https://rdv.son-domaine.com` |
+| `NEXT_PUBLIC_BRAND_NAME` | le nom de son business |
+| `GOOGLE_CLIENT_ID` | mon client OAuth (mutualisé) |
+| `GOOGLE_OAUTH_STATE_SECRET` | même valeur que côté Convex |
 
-Performance : garde la **région Vercel en Europe** (`vercel.json` → `fra1`, déjà
-dans le repo) pour coller au Convex EU.
+> `NEXT_PUBLIC_CONVEX_URL` n'est pas à poser : `convex deploy` la fournit au
+> build. La poser à la main, c'est risquer qu'elle contredise la vraie base.
 
-⚠️ **Deployment Protection** : si le projet Vercel a la protection SSO activée,
-l'URL renvoie une redirection vers `vercel.com/sso-api` et **les prospects ne
-peuvent pas accéder à la page de réservation**. À désactiver
-(Settings → Deployment Protection) pour l'URL publique du client.
+### c. Les secrets côté Convex
 
-### 6. Brancher le domaine du client ⚠️ (les 3 pièges)
+Sur la base du client (via son tableau de bord, ou en CLI avec sa clé) :
 
-**a) Toujours un SOUS-domaine, jamais la racine.** Si le client a déjà un site
-sur `client.com`, ajouter la racine dans Vercel entre en conflit avec les
-enregistrements existants (erreur *"An A, AAAA, or CNAME record with that host
-already exists"*) et casserait son site + ses emails. Utiliser
-`rdv.client.com` (ou `app.` / `book.`).
+| Variable | Rôle |
+|---|---|
+| `JWT_PRIVATE_KEY`, `JWKS` | authentification — **à générer, jamais à copier d'une autre instance** |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connexion des agendas |
+| `GOOGLE_OAUTH_STATE_SECRET` | même valeur que côté Vercel |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | envoi des emails |
+| `SIGNUP_ALLOWED_EMAILS` | **l'email du client, et lui seul** — le premier inscrit devient admin |
+| `APP_BASE_URL`, `SITE_URL` | `https://rdv.son-domaine.com` — les deux, obligatoires |
+| `BRAND_NAME`, `BRAND_COLOR` | identité des emails |
 
-1. **Vercel → projet → Settings → Domains → Add** → `rdv.client.com`
-   Vercel affiche alors la cible CNAME à créer (elle porte le nom du
-   sous-domaine, pas `@`).
-2. **Chez le registrar / Cloudflare → Add record** :
-   - Type : **CNAME**
-   - Name : **`rdv`** (le sous-domaine seul)
-   - Target : la valeur exacte donnée par Vercel (`cname.vercel-dns.com` ou
-     équivalent)
-   - **b) Proxy status : `DNS only`** (nuage **gris**). En *Proxied* (orange),
-     Vercel affiche *"Proxy Detected"* et la gestion SSL/bot casse.
-3. Attendre le passage en **Valid Configuration** (SSL automatique, 1–5 min).
+### d. Google Cloud
 
-**c) Cohérence des URL** — une fois le domaine actif, poser les deux :
-```bash
-bunx convex env set APP_BASE_URL "https://rdv.client.com"   # liens des emails + retour OAuth
+Ajouter l'URL de retour de sa base dans *Credentials → Authorized redirect URIs* :
+
 ```
-et `NEXT_PUBLIC_APP_URL` = la même valeur côté Vercel (étape 5), puis
-**redéployer** (`bunx vercel --prod`) pour que la variable soit prise en compte.
+https://<sa-base>.convex.site/google/callback
+```
 
-Le client doit ensuite **naviguer sur ce domaine** (pas sur l'URL `*.vercel.app`),
-sinon la session se perd après l'OAuth Google et les liens copiés portent le
-mauvais domaine.
+Sans ça, la connexion d'agenda échoue — et l'erreur ne dit pas pourquoi.
 
-### 7. Le client s'inscrit
-Il va sur son URL → `/signup` avec son email (celui de l'allowlist) → **il est
-admin** de son instance. Il ajoute ses closers via Settings → Team (chacun devra
-être ajouté à `SIGNUP_ALLOWED_EMAILS` pour pouvoir s'inscrire).
+### e. Le domaine
 
-### 8. (Optionnel) Stripe — encaisser depuis le CRM
+Vercel → projet → **Domains** → ajouter `rdv.son-domaine.com`.
+Chez son registrar : **CNAME** `rdv` → la cible affichée par Vercel, en
+**DNS only** (nuage gris chez Cloudflare).
 
-⚠️ **Chaque client utilise SA propre clé Stripe** : c'est son compte, son argent,
-ses paiements. Ne mets jamais de clé Stripe dans `onboard.config.json` (qui ne
-contient que les secrets *partagés* Google/Resend), et ne saisis pas la clé à sa
-place — **c'est lui qui la colle**, depuis l'interface, sur son instance.
+### f. Première connexion
 
-Tout se fait dans l'app, **aucune commande** :
-
-1. Le client se connecte → **Paramètres → Intégrations**.
-2. Il colle sa **clé secrète** (Dashboard Stripe → Développeurs → Clés API).
-   Commencer par `sk_test_…` pour valider le parcours sans encaisser réellement ;
-   la page affiche un badge **Mode test / Mode réel** pour éviter la confusion.
-3. **Webhook** (recommandé) — sans lui, les liens fonctionnent mais le lead doit
-   être passé en « gagné » à la main :
-   - copier l'URL affichée sur la page (elle pointe sur le `*.convex.site` **de
-     cette instance**, donc elle est différente pour chaque client) ;
-   - Stripe → Développeurs → Webhooks → *Add endpoint* → coller l'URL →
-     sélectionner l'événement **`payment_intent.succeeded`** ;
-   - recopier le *Signing secret* (`whsec_…`) dans le champ prévu.
-
-Résultat : dans la fiche d'un lead, un bouton **« Lien de paiement »** génère un
-lien Stripe (qui n'expire pas). Au paiement, le lead passe automatiquement en
-**gagné** avec le montant, visible dans les analytics.
-
-Le bouton n'apparaît que si Stripe est configuré **et** activé — un client qui
-n'en veut pas ne voit rien.
-
-**Sécurité** : la clé est stockée chiffrée côté Convex, n'est jamais réaffichée
-(seul un aperçu masqué), et l'endpoint webhook vérifie la signature Stripe — une
-requête non signée est rejetée.
+Le client s'inscrit sur `rdv.son-domaine.com/signup` avec l'adresse mise dans
+`SIGNUP_ALLOWED_EMAILS`. Il devient admin. Il invite ensuite son équipe
+lui-même depuis *Paramètres → Équipe*.
 
 ---
 
-## Récap des points qui coincent souvent
-- **Le lien copié porte `*.vercel.app`** → `NEXT_PUBLIC_APP_URL` absente ou pas
-  redéployée après l'avoir posée (étape 5/6).
-- **"record with that host already exists"** → tu ajoutes la racine du domaine au
-  lieu d'un sous-domaine (étape 6a).
-- **"Proxy Detected" dans Vercel** → le CNAME est en *Proxied* chez Cloudflare,
-  le passer en **DNS only** (étape 6b).
-- **La page de réservation renvoie vers `vercel.com/sso`** → Deployment
-  Protection activée sur le projet (étape 5).
-- **Emails qui n'arrivent pas** → Resend encore en sandbox (étape prérequis 1).
-- **Google Calendar qui échoue** → redirect URI de l'instance pas ajouté (étape 4).
-- **Déconnecté après OAuth** → `APP_BASE_URL` ≠ l'URL réellement visitée (étape 6).
-- **Lent** → région Vercel hors Europe (garder `fra1`).
-- **Inscription impossible** → email pas dans `SIGNUP_ALLOWED_EMAILS`.
+## 3. Mettre à jour tous les clients
+
+```bash
+git push
+```
+
+C'est tout. Chaque projet Vercel se reconstruit et redéploie sur sa propre base.
+
+Pour ne livrer qu'à certains clients, désactiver le déploiement automatique sur
+les projets concernés (Vercel → Settings → Git → Ignored Build Step) et les
+redéployer à la main quand voulu.
+
+---
+
+## 4. Ce qu'il faut lui dire, et écrire
+
+**Juridiquement**, si sa base est chez lui et le code chez moi, je suis
+prestataire technique, pas hébergeur de ses données. Ça reste à formaliser :
+un contrat de prestation qui dit qui héberge quoi, qui répond en cas de panne,
+et ce qui se passe s'il part. Le nurturing envoie des emails commerciaux à ses
+prospects — le consentement et le désabonnement le concernent, lui.
+
+**S'il part**, il garde sa base Convex : ses données restent les siennes. Le
+code, non. À écrire noir sur blanc avant de démarrer, pas après.
+
+---
+
+## 5. Pièges déjà rencontrés
+
+| Symptôme | Cause |
+|---|---|
+| `record with that host already exists` | ajout du domaine racine au lieu du sous-domaine |
+| `Proxy Detected` dans Vercel | CNAME en *Proxied* → passer en **DNS only** |
+| Le lien copié porte `*.vercel.app` | `NEXT_PUBLIC_APP_URL` absente ou pas redéployée |
+| Réinitialisation de mot de passe sans effet | `SITE_URL` absente côté Convex |
+| Emails qui n'arrivent qu'au client | domaine pas encore vérifié dans Resend |
+| Agenda Google qui décroche | app OAuth restée en mode "Testing" |
+| Inscription refusée | email absent de `SIGNUP_ALLOWED_EMAILS` |
+| Paiements Stripe absents du CRM | webhook créé en mode Test, clé passée en Live |
