@@ -14,7 +14,7 @@
 //   bun run scripts/sync-instances.mjs --no-deploy
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -206,16 +206,29 @@ for (const inst of instances) {
 		console.log("   · déploiement Vercel…");
 		run("bunx", ["vercel", "--prod", "--yes"], path);
 
-		// Les CLI Convex et Vercel réécrivent .env.local. Si l'une d'elles a
-		// changé la cible en passant, on le dit tout de suite plutôt que de le
-		// découvrir à la prochaine commande.
-		const after2 = assertIdentity(inst, path);
-		if (after2.length > 0) {
-			failures++;
-			console.log("   ⚠ le déploiement a modifié l'identité de l'instance :");
-			for (const p of after2) console.log(`     - ${p}`);
-			console.log("     → corrige .env.local avant toute autre commande.");
-			continue;
+		// Une étape de déploiement réécrit parfois CONVEX_DEPLOYMENT dans
+		// .env.local en y mettant celui du dépôt principal. Je n'ai pas réussi à
+		// reproduire le phénomène en lançant les commandes une par une, donc pas
+		// de correctif à la source ; mais la valeur attendue est déclarée ici, et
+		// la rétablir est sans risque. On la remet, et on le dit.
+		const drift = assertIdentity(inst, path);
+		if (drift.length > 0) {
+			const envFile = join(path, ".env.local");
+			if (inst.convexDeployment && existsSync(envFile) && !dryRun) {
+				const fixed = readFileSync(envFile, "utf8").replace(
+					/^CONVEX_DEPLOYMENT=.*$/m,
+					`CONVEX_DEPLOYMENT=dev:${inst.convexDeployment}`,
+				);
+				writeFileSync(envFile, fixed, "utf8");
+			}
+			const still = assertIdentity(inst, path);
+			if (still.length > 0) {
+				failures++;
+				console.log("   ⚠ identité incorrecte après déploiement :");
+				for (const p of still) console.log(`     - ${p}`);
+				continue;
+			}
+			console.log("   · cible locale rétablie (réécrite par un déploiement)");
 		}
 
 		console.log("   ✓ en ligne");
