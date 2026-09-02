@@ -11,8 +11,7 @@
     "start": "next start",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "typecheck": "tsc --noEmit",
-    "sync": "bun run scripts/sync-instances.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@auth/core": "0.40.0",
