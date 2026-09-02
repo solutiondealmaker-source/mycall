@@ -15,9 +15,10 @@
 // ============================================================
 
 export const BRAND_NAME = process.env.BRAND_NAME?.trim() || "Mycall";
-const BRAND_TAGLINE =
-	process.env.BRAND_TAGLINE?.trim() ??
-	"La plateforme de booking pour les équipes commerciales";
+// Pas de slogan par défaut : un slogan non choisi vaut mieux absent que
+// générique. Une instance qui en veut un le déclare. Ça évite aussi de devoir
+// poser une valeur vide pour le supprimer — ce que la CLI Convex refuse.
+const BRAND_TAGLINE = process.env.BRAND_TAGLINE?.trim() ?? "";
 // Couleur d'accent : boutons, liens, logo. Doit rester sombre — le texte des
 // boutons est blanc.
 const BRAND_COLOR = normalizeHex(process.env.BRAND_COLOR) ?? "#192A3B";
