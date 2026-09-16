@@ -89,6 +89,11 @@ export function PendingInvitations() {
 								{roleLabel(inv.role)} · envoyée le {fmtDate(inv.createdAt)}
 								{!inv.expired && ` · expire le ${fmtDate(inv.expiresAt)}`}
 							</p>
+							{inv.eventNames.length > 0 && (
+								<p className="text-xs text-[var(--ink-muted)] truncate">
+									Hôte de : {inv.eventNames.join(", ")}
+								</p>
+							)}
 						</div>
 
 						<div className="flex items-center gap-1 shrink-0">

@@ -5,6 +5,7 @@ import { motion, type Variants } from "framer-motion";
 import {
 	CalendarDays,
 	Copy,
+	CopyPlus,
 	MoreHorizontal,
 	Pencil,
 	Plus,
@@ -12,6 +13,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/../convex/_generated/api";
@@ -56,6 +58,8 @@ export default function EventsPage() {
 	const rawEvents = useQuery(api.events.list, {}) as EventDoc[] | undefined;
 	const updateEvent = useMutation(api.events.update);
 	const archiveEvent = useMutation(api.events.archive);
+	const duplicateEvent = useMutation(api.events.duplicate);
+	const router = useRouter();
 
 	const [search, setSearch] = useState("");
 	const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -97,6 +101,19 @@ export default function EventsPage() {
 		navigator.clipboard.writeText(publicBookingUrl(slug)).then(() => {
 			toast.success("URL copiée !");
 		});
+	};
+
+	const handleDuplicate = async (id: string, name: string) => {
+		try {
+			const newId = await duplicateEvent({ id: id as Id<"events"> });
+			toast.success(`Copie de "${name}" créée`, {
+				description: "Elle est inactive : relis-la avant de l'activer.",
+			});
+			router.push(`/events/${newId}/edit`);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : "Erreur inconnue";
+			toast.error("Impossible de dupliquer", { description: msg });
+		}
 	};
 
 	const handleArchive = async (id: string, name: string) => {
@@ -182,6 +199,7 @@ export default function EventsPage() {
 								handleToggleActive(event._id, event.isActive)
 							}
 							onCopyUrl={() => handleCopyUrl(event.slug)}
+							onDuplicate={() => handleDuplicate(event._id, event.name)}
 							onArchive={() => handleArchive(event._id, event.name)}
 						/>
 					))}
@@ -198,6 +216,7 @@ interface EventRowProps {
 	index: number;
 	onToggleActive: () => void;
 	onCopyUrl: () => void;
+	onDuplicate: () => void;
 	onArchive: () => void;
 }
 
@@ -206,6 +225,7 @@ function EventRow({
 	index,
 	onToggleActive,
 	onCopyUrl,
+	onDuplicate,
 	onArchive,
 }: EventRowProps) {
 	const createdAt = new Intl.DateTimeFormat("fr-FR", {
@@ -330,6 +350,10 @@ function EventRow({
 						<DropdownMenuItem onClick={onCopyUrl} className="gap-2">
 							<Copy className="w-3.5 h-3.5" />
 							Copier l'URL
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={onDuplicate} className="gap-2">
+							<CopyPlus className="w-3.5 h-3.5" />
+							Dupliquer
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem

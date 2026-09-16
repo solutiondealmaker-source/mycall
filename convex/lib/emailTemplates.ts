@@ -491,13 +491,26 @@ export interface InvitationArgs {
 	inviterName: string | null;
 	roleLabel: string;
 	roleDescription: string;
+	eventNames: string[];
 	signupUrl: string;
 	expiresLabel: string;
 }
 
 export function invitationTemplate(args: InvitationArgs): string {
-	const { inviterName, roleLabel, roleDescription, signupUrl, expiresLabel } =
-		args;
+	const {
+		inviterName,
+		roleLabel,
+		roleDescription,
+		eventNames,
+		signupUrl,
+		expiresLabel,
+	} = args;
+
+	const eventsLine =
+		eventNames.length > 0
+			? `<p style="margin:14px 0 0;font-size:12px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.06em">Vos rendez-vous</p>
+<p style="margin:6px 0 0;font-size:14px;color:#1E293B;line-height:1.6">${eventNames.map(escapeHtml).join("<br>")}</p>`
+			: "";
 
 	const invitedBy = inviterName
 		? `${escapeHtml(inviterName)} vous invite à rejoindre`
@@ -511,6 +524,7 @@ ${infoBlock([
 	`<p style="margin:0;font-size:12px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.06em">Votre rôle</p>`,
 	`<p style="margin:6px 0 0;font-size:16px;font-weight:600;color:#1E293B">${escapeHtml(roleLabel)}</p>`,
 	`<p style="margin:6px 0 0;font-size:13px;color:#64748B;line-height:1.6">${escapeHtml(roleDescription)}</p>`,
+	eventsLine,
 ])}
 
 ${ctaButton("Créer mon compte", signupUrl)}

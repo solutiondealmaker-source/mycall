@@ -64,6 +64,8 @@ export default defineSchema({
 			v.literal("viewer"),
 		),
 		invitedByUserId: v.id("users"),
+		// Ã‰vÃ©nements dont la personne devient hÃ´te Ã  la crÃ©ation de son compte.
+		eventIds: v.optional(v.array(v.id("events"))),
 		createdAt: v.number(),
 		expiresAt: v.number(),
 		acceptedAt: v.optional(v.number()),
@@ -263,8 +265,8 @@ export default defineSchema({
 		// RÃ©sultat commercial
 		montantContracte: v.optional(v.number()), // en centimes
 		convertedAt: v.optional(v.number()),
-		// Désinscription du nurturing. Obligatoire légalement : un email
-		// commercial doit porter un lien de désabonnement qui fonctionne.
+		// Dï¿½sinscription du nurturing. Obligatoire lï¿½galement : un email
+		// commercial doit porter un lien de dï¿½sabonnement qui fonctionne.
 		emailOptOutAt: v.optional(v.number()),
 		unsubToken: v.optional(v.string()),
 
@@ -584,7 +586,7 @@ export default defineSchema({
 	// vit ici plutÃ´t que dans les metadata Stripe : c'est notre base qui dÃ©cide
 	// quand s'arrÃªter, pas une valeur qu'un tiers pourrait modifier.
 	// ============================================================
-	// NURTURING — séquences d'emails programmés
+	// NURTURING ï¿½ sï¿½quences d'emails programmï¿½s
 	// ============================================================
 
 	emailSequences: defineTable({
@@ -604,8 +606,8 @@ export default defineSchema({
 	sequenceSteps: defineTable({
 		sequenceId: v.id("emailSequences"),
 		order: v.number(),
-		// Décalage en minutes par rapport à l'ancre de l'inscription.
-		// Négatif = AVANT (nurturing pré-RDV : -2880 = 2 jours avant).
+		// Dï¿½calage en minutes par rapport ï¿½ l'ancre de l'inscription.
+		// Nï¿½gatif = AVANT (nurturing prï¿½-RDV : -2880 = 2 jours avant).
 		offsetMinutes: v.number(),
 		subject: v.string(),
 		body: v.string(),
@@ -615,8 +617,8 @@ export default defineSchema({
 		sequenceId: v.id("emailSequences"),
 		leadId: v.id("leads"),
 		bookingId: v.optional(v.id("bookings")),
-		// Instant de référence des décalages : l'inscription, ou le début du RDV
-		// pour une séquence pré-rendez-vous.
+		// Instant de rï¿½fï¿½rence des dï¿½calages : l'inscription, ou le dï¿½but du RDV
+		// pour une sï¿½quence prï¿½-rendez-vous.
 		anchorAt: v.number(),
 		status: v.union(
 			v.literal("active"),
@@ -629,8 +631,8 @@ export default defineSchema({
 		.index("by_status", ["status"])
 		.index("by_lead", ["leadId"]),
 
-	// Une ligne par envoi effectué. C'est la garde qui empêche qu'un lead
-	// reçoive deux fois la même étape si un cron se chevauche.
+	// Une ligne par envoi effectuï¿½. C'est la garde qui empï¿½che qu'un lead
+	// reï¿½oive deux fois la mï¿½me ï¿½tape si un cron se chevauche.
 	sequenceSends: defineTable({
 		enrollmentId: v.id("sequenceEnrollments"),
 		stepId: v.id("sequenceSteps"),

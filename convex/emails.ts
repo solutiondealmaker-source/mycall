@@ -561,8 +561,9 @@ export const sendInvitation = internalAction({
 		to: v.string(),
 		role: v.string(),
 		inviterName: v.union(v.string(), v.null()),
+		eventNames: v.optional(v.array(v.string())),
 	},
-	handler: async (ctx, { to, role, inviterName }) => {
+	handler: async (ctx, { to, role, inviterName, eventNames }) => {
 		const copy = ROLE_COPY[role] ?? {
 			label: role,
 			description: "Accès à l'espace de travail.",
@@ -576,6 +577,7 @@ export const sendInvitation = internalAction({
 				inviterName,
 				roleLabel: copy.label,
 				roleDescription: copy.description,
+				eventNames: eventNames ?? [],
 				signupUrl: `${SITE_URL}/signup`,
 				expiresLabel: formatDateFR(expiresAt, "Europe/Paris"),
 			}),

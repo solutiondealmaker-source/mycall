@@ -84,6 +84,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 			if (invitation) {
 				await ctx.runMutation(internal.invitations.markAcceptedInternal, {
 					invitationId: invitation._id,
+					userId,
 				});
 			}
 

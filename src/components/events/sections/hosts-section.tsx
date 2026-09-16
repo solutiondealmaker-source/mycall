@@ -1,9 +1,14 @@
 "use client";
 
-import { Check, UserPlus, Users, X } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { Check, Mail, UserPlus, Users, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { api } from "@/../convex/_generated/api";
+import type { Id } from "@/../convex/_generated/dataModel";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { SectionShell } from "@/components/events/section-shell";
+import { InviteMemberDialog } from "@/components/settings/team/invite-member-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,6 +100,24 @@ export function HostsSection({
 	const [addPopoverOpen, setAddPopoverOpen] = useState(false);
 	const [selectedNewUserId, setSelectedNewUserId] = useState("");
 
+	const eventId = event._id as Id<"events">;
+	const pendingInvites = useQuery(api.invitations.listPendingForEvent, {
+		eventId,
+	});
+	const detachInvite = useMutation(api.invitations.detachEvent);
+
+	const handleDetachInvite = useCallback(
+		async (invitationId: Id<"invitations">, email: string) => {
+			try {
+				await detachInvite({ invitationId, eventId });
+				toast.success(`${email} ne sera plus hôte de cet événement`);
+			} catch (err) {
+				toast.error(err instanceof Error ? err.message : "Erreur");
+			}
+		},
+		[detachInvite, eventId],
+	);
+
 	useEffect(() => {
 		setPriorityMode(event.priorityMode);
 		setSetterId(event.setterId ?? "");
@@ -145,68 +168,80 @@ export function HostsSection({
 							Hôtes assignés ({hosts.length})
 						</Label>
 
-						{/* Bouton ajouter */}
-						<Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
-							<PopoverTrigger asChild>
-								<Button variant="outline" size="sm" className="gap-1.5">
-									<UserPlus className="w-3.5 h-3.5" />
-									Ajouter un hôte
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent className="w-[300px] p-0" align="end">
-								<Command>
-									<CommandInput placeholder="Rechercher par nom ou email..." />
-									<CommandList>
-										<CommandEmpty>
-											<p className="text-sm text-[var(--ink-muted)] text-center py-4">
-												Aucun utilisateur trouvé
-											</p>
-										</CommandEmpty>
-										<CommandGroup heading="Utilisateurs disponibles">
-											{addableUsers.map((user) => (
-												<CommandItem
-													key={user.id}
-													value={`${user.name} ${user.email}`}
-													onSelect={() => setSelectedNewUserId(user.id)}
-												>
-													<div className="flex items-center gap-2.5 flex-1">
-														<AvatarCircle
-															name={user.name ?? user.email}
-															size="xs"
-														/>
-														<div className="min-w-0">
-															<p className="text-sm font-medium text-[var(--ink)] truncate">
-																{user.name ?? "Sans nom"}
-															</p>
-															<p className="text-xs text-[var(--ink-muted)] truncate">
-																{user.email}
-															</p>
-														</div>
-													</div>
-													{selectedNewUserId === user.id && (
-														<Check className="w-4 h-4 text-[var(--brand)] ml-auto shrink-0" />
-													)}
-												</CommandItem>
-											))}
-										</CommandGroup>
-									</CommandList>
-								</Command>
-								<div className="p-2 border-t border-[var(--border)]">
-									<Button
-										size="sm"
-										className="w-full"
-										disabled={!selectedNewUserId}
-										onClick={handleAddHost}
-									>
-										Confirmer l'ajout
+						<div className="flex items-center gap-2">
+							<InviteMemberDialog
+								eventId={eventId}
+								trigger={
+									<Button variant="ghost" size="sm" className="gap-1.5">
+										<Mail className="w-3.5 h-3.5" />
+										Inviter par email
 									</Button>
-								</div>
-							</PopoverContent>
-						</Popover>
+								}
+							/>
+
+							{/* Bouton ajouter */}
+							<Popover open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+								<PopoverTrigger asChild>
+									<Button variant="outline" size="sm" className="gap-1.5">
+										<UserPlus className="w-3.5 h-3.5" />
+										Ajouter un hôte
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="w-[300px] p-0" align="end">
+									<Command>
+										<CommandInput placeholder="Rechercher par nom ou email..." />
+										<CommandList>
+											<CommandEmpty>
+												<p className="text-sm text-[var(--ink-muted)] text-center py-4">
+													Aucun utilisateur trouvé
+												</p>
+											</CommandEmpty>
+											<CommandGroup heading="Utilisateurs disponibles">
+												{addableUsers.map((user) => (
+													<CommandItem
+														key={user.id}
+														value={`${user.name} ${user.email}`}
+														onSelect={() => setSelectedNewUserId(user.id)}
+													>
+														<div className="flex items-center gap-2.5 flex-1">
+															<AvatarCircle
+																name={user.name ?? user.email}
+																size="xs"
+															/>
+															<div className="min-w-0">
+																<p className="text-sm font-medium text-[var(--ink)] truncate">
+																	{user.name ?? "Sans nom"}
+																</p>
+																<p className="text-xs text-[var(--ink-muted)] truncate">
+																	{user.email}
+																</p>
+															</div>
+														</div>
+														{selectedNewUserId === user.id && (
+															<Check className="w-4 h-4 text-[var(--brand)] ml-auto shrink-0" />
+														)}
+													</CommandItem>
+												))}
+											</CommandGroup>
+										</CommandList>
+									</Command>
+									<div className="p-2 border-t border-[var(--border)]">
+										<Button
+											size="sm"
+											className="w-full"
+											disabled={!selectedNewUserId}
+											onClick={handleAddHost}
+										>
+											Confirmer l'ajout
+										</Button>
+									</div>
+								</PopoverContent>
+							</Popover>
+						</div>
 					</div>
 
 					{/* Empty state */}
-					{hosts.length === 0 ? (
+					{hosts.length === 0 && !pendingInvites?.length ? (
 						<div className="flex flex-col items-center justify-center py-10 gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--border)] bg-[var(--surface-raised)]">
 							<Users className="w-8 h-8 text-[var(--ink-ghost)]" />
 							<div className="text-center">
@@ -227,6 +262,35 @@ export function HostsSection({
 									onRemove={() => onRemoveHost(host._id)}
 									onPriorityChange={(p) => onUpdateHostPriority(host._id, p)}
 								/>
+							))}
+							{pendingInvites?.map((inv) => (
+								<div
+									key={inv._id}
+									className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] border border-dashed border-[var(--border)] bg-[var(--surface-raised)]"
+								>
+									<div className="w-8 h-8 rounded-full bg-[var(--brand-soft)] flex items-center justify-center shrink-0">
+										<Mail className="w-3.5 h-3.5 text-[var(--brand)]" />
+									</div>
+									<div className="flex-1 min-w-0">
+										<p className="text-sm font-medium text-[var(--ink)] truncate">
+											{inv.email}
+										</p>
+										<p className="text-xs text-[var(--ink-muted)]">
+											{inv.expired
+												? "Invitation expirée — renvoie-la depuis Paramètres → Équipe"
+												: "Invitation envoyée · hôte dès son inscription"}
+										</p>
+									</div>
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										onClick={() => handleDetachInvite(inv._id, inv.email)}
+										className="text-[var(--ink-ghost)] hover:text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+										aria-label="Retirer de cet événement"
+									>
+										<X className="w-3.5 h-3.5" />
+									</Button>
+								</div>
 							))}
 						</div>
 					)}

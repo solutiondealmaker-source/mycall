@@ -238,30 +238,53 @@ export const archive = mutation({
 	},
 });
 
-// Deep clone event + its questions + its hosts.
+// Copie complète : réglages, questions, hôtes, et invitations en attente sur
+// l'événement d'origine. Sans nom ni slug fournis, « (copie) » et un slug libre
+// sont choisis automatiquement.
 export const duplicate = mutation({
-	args: { id: v.id("events"), newSlug: v.string(), newName: v.string() },
+	args: {
+		id: v.id("events"),
+		newSlug: v.optional(v.string()),
+		newName: v.optional(v.string()),
+	},
 	handler: async (ctx, { id, newSlug, newName }) => {
 		await requireAdmin(ctx);
 
 		const event = await ctx.db.get(id);
 		if (!event) throw new Error("Événement introuvable");
 
-		// Slug uniqueness
-		const conflict = await ctx.db
-			.query("events")
-			.withIndex("by_slug", (q) => q.eq("slug", newSlug))
-			.first();
-		if (conflict) throw new Error(`Slug "${newSlug}" déjà utilisé`);
+		const slugTaken = async (slug: string) =>
+			(await ctx.db
+				.query("events")
+				.withIndex("by_slug", (q) => q.eq("slug", slug))
+				.first()) !== null;
 
-		// Clone event row
+		let slug = newSlug?.trim();
+		if (slug) {
+			if (await slugTaken(slug)) throw new Error(`Slug "${slug}" déjà utilisé`);
+		} else {
+			const base = `${event.slug}-copie`;
+			slug = base;
+			for (let n = 2; await slugTaken(slug); n++) slug = `${base}-${n}`;
+		}
+
+		// Inactive au départ : la copie partage le formulaire et les hôtes de
+		// l'original, on la relit avant de la publier.
 		const { _id, _creationTime, ...rest } = event;
 		const newEventId = await ctx.db.insert("events", {
 			...rest,
-			name: newName,
-			slug: newSlug,
-			isActive: false, // start inactive — admin activates explicitly
+			name: newName?.trim() || `${event.name} (copie)`,
+			slug,
+			isActive: false,
 		});
+
+		const invitations = await ctx.db.query("invitations").collect();
+		for (const inv of invitations) {
+			if (inv.acceptedAt || inv.revokedAt || !inv.eventIds?.includes(id)) {
+				continue;
+			}
+			await ctx.db.patch(inv._id, { eventIds: [...inv.eventIds, newEventId] });
+		}
 
 		// Clone questions (preserve order)
 		const questions = await ctx.db
