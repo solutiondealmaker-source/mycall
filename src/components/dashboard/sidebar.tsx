@@ -20,6 +20,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/../convex/_generated/api";
+import { BrandMark } from "@/components/brand-mark";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import {
 	DropdownMenu,
@@ -29,7 +30,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import { BRAND_LOGO_FULL, BRAND_LOGO_ICON, BRAND_NAME } from "@/lib/brand";
+import { BRAND_LOGO_FULL, BRAND_NAME } from "@/lib/brand";
 import { canReadAll } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
@@ -187,15 +188,8 @@ export function Sidebar() {
 					className="flex items-center focus-visible:outline-none"
 				>
 					{collapsed ? (
-						<Image
-							src={BRAND_LOGO_ICON}
-							alt={BRAND_NAME}
-							width={300}
-							height={300}
-							priority
-							className="h-24 w-24 object-contain"
-						/>
-					) : (
+						<BrandMark priority className="h-24 w-24" />
+					) : BRAND_LOGO_FULL ? (
 						<Image
 							src={BRAND_LOGO_FULL}
 							alt={BRAND_NAME}
@@ -204,6 +198,17 @@ export function Sidebar() {
 							priority
 							className="h-28 w-auto"
 						/>
+					) : (
+						// Pas de logo complet : l'icône (ou le monogramme) et le nom.
+						<span className="flex items-center gap-3 min-w-0">
+							<BrandMark priority className="h-10 w-10 shrink-0" />
+							<span
+								className="text-lg font-semibold tracking-tight text-[var(--ink)] truncate"
+								style={{ fontFamily: "var(--font-display)" }}
+							>
+								{BRAND_NAME}
+							</span>
+						</span>
 					)}
 				</Link>
 			</div>

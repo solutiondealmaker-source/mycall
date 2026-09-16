@@ -2,7 +2,7 @@ import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import type { Metadata } from "next";
 import { Manrope, Outfit } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { BRAND_NAME } from "@/lib/brand";
+import { BRAND_LOGO_ICON, BRAND_NAME } from "@/lib/brand";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -21,6 +21,12 @@ const manrope = Manrope({
 export const metadata: Metadata = {
 	title: `${BRAND_NAME} — Booking & CRM`,
 	description: "Plateforme de booking et CRM pour closers.",
+	// L'icône d'onglet suit le logo de l'instance. Pas de fichier app/icon.png :
+	// un fichier l'emporterait sur ce réglage et imposerait la même icône à
+	// toutes les instances.
+	icons: BRAND_LOGO_ICON
+		? { icon: BRAND_LOGO_ICON, apple: BRAND_LOGO_ICON }
+		: undefined,
 };
 
 export default function RootLayout({

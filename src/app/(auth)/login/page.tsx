@@ -3,12 +3,12 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BRAND_LOGO_ICON, BRAND_NAME } from "@/lib/brand";
+import { BRAND_NAME } from "@/lib/brand";
 
 const containerVariants = {
 	hidden: { opacity: 0, y: 16, scale: 0.98 },
@@ -74,14 +74,7 @@ export default function LoginPage() {
 					variants={itemVariants}
 					className="mb-6 flex flex-col items-center gap-3"
 				>
-					<Image
-						src={BRAND_LOGO_ICON}
-						alt={BRAND_NAME}
-						width={64}
-						height={64}
-						priority
-						className="h-14 w-14 object-contain"
-					/>
+					<BrandMark priority className="h-14 w-14" />
 					<span
 						className="font-display text-2xl font-semibold tracking-tight text-[var(--ink)]"
 						style={{ fontFamily: "var(--font-display)" }}
