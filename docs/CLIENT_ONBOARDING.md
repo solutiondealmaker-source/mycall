@@ -1,8 +1,10 @@
-# Livrer une instance — mon déroulé
+# Livrer une instance — client autonome
 
 Le document à envoyer au client est [CLIENT_CHECKLIST.md](CLIENT_CHECKLIST.md).
 Celui-ci est le mien : ce que je fais, quand, et ce que j'attends de lui à
 chaque moment.
+
+Pour un client qui ne veut rien créer lui-même : [CLIENT_CLE_EN_MAIN.md](CLIENT_CLE_EN_MAIN.md).
 
 Durée réelle de mon côté : **30 minutes**, réparties en trois temps.
 
@@ -29,98 +31,86 @@ Durée réelle de mon côté : **30 minutes**, réparties en trois temps.
 
 ---
 
-## TEMPS 1 — Avant tout, je réclame trois choses
+## TEMPS 1 — Avant tout, je réclame quatre choses
 
 J'envoie [CLIENT_CHECKLIST.md](CLIENT_CHECKLIST.md) et j'attends :
 
 1. sa **clé de déploiement Convex** (production, permission `deployment:deploy`)
-2. sa **clé API Resend** + l'adresse d'expédition, domaine vérifié
-3. le **sous-domaine** et l'**email administrateur** qu'il a choisis
+2. mon **invitation dans son équipe Convex** — c'est ce qui permet au script
+   d'écrire ses variables ; il pourra me retirer ensuite
+3. son **domaine vérifié dans Resend**, et sa clé API collée **par lui** dans sa
+   base, sous le nom `RESEND_API_KEY`
+4. le **sous-domaine**, l'**email administrateur** et l'**adresse d'envoi**
 
-⚠️ **Je ne commence pas avant d'avoir les trois.** Monter un projet à moitié
-oblige à y revenir, et c'est là qu'on oublie une variable.
+⚠️ **Je ne commence pas avant d'avoir les quatre.** Monter une instance à moitié
+oblige à y revenir, et c'est là qu'une variable s'oublie.
 
 ---
 
 ## TEMPS 2 — Je monte l'instance *(20 minutes)*
 
-### a. Le projet Vercel
+### a. Le fichier du client
 
-Vercel → **Add New → Project** → importer le dépôt `mycall`.
-Nom du projet : celui du client.
+Copier `clients/exemple.json` en `clients/<client>.json` et le remplir.
+Ajouter `"ownResend": true` : le script utilisera la clé Resend que le client a
+posée, au lieu de la mienne.
 
-> Le même dépôt sert tous les clients. Ce sont les variables qui distinguent.
-
-La commande de build vient de `vercel.json`, il n'y a rien à saisir.
-
-### b. Les variables du projet Vercel *(environnement Production)*
-
-| Variable | Valeur |
+| Champ | Valeur |
 |---|---|
-| `CONVEX_DEPLOY_KEY` | la clé du client |
-| `NEXT_PUBLIC_CONVEX_URL` | l'URL de sa base — visible après le premier build |
-| `NEXT_PUBLIC_CONVEX_SITE_URL` | la même en `.convex.site` |
-| `NEXT_PUBLIC_APP_URL` | `https://rdv.son-domaine.com` |
-| `NEXT_PUBLIC_BRAND_NAME` | le nom de son business |
-| `GOOGLE_CLIENT_ID` | mon client OAuth mutualisé |
-| `GOOGLE_OAUTH_STATE_SECRET` | même valeur que côté Convex |
+| `name` | le nom de son business |
+| `convexUrl` | l'URL de sa base de **production** (`…convex.cloud`) |
+| `domain` | `rdv.son-domaine.com` |
+| `adminEmail` | son email administrateur |
+| `fromEmail` | `Son Nom <rdv@son-domaine.com>` |
+| `ownResend` | `true` |
 
-> **`NEXT_PUBLIC_CONVEX_URL` est indispensable au rendu serveur.** La commande
-> de build la fournit à la compilation, mais les pages qui interrogent la base
-> côté serveur — la page de réservation en tête — la relisent à l'exécution.
-> Sans elle : page de réservation en 404, sans message d'erreur.
+### b. Le script
 
-### c. Les secrets côté Convex
+```bash
+bun run onboard clients/<client>.json
+```
 
-Sur sa base, via son tableau de bord ou en CLI avec sa clé :
+Il génère ses clés d'authentification, pose ses variables (`SITE_URL`
+comprise), vérifie la présence de sa clé Resend, puis affiche les valeurs
+Vercel et l'adresse de retour Google.
 
-| Variable | Note |
-|---|---|
-| `JWT_PRIVATE_KEY`, `JWKS` | **à générer pour lui** — jamais recopier d'une autre instance |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | mon client OAuth |
-| `GOOGLE_OAUTH_STATE_SECRET` | identique à Vercel |
-| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | ses clés à lui |
-| `SIGNUP_ALLOWED_EMAILS` | **son email, et lui seul** |
-| `APP_BASE_URL` **et** `SITE_URL` | les deux, même valeur — `SITE_URL` conditionne la réinitialisation de mot de passe |
-| `BRAND_NAME`, `BRAND_COLOR` | identité des emails |
-| `BRAND_TAGLINE` | seulement s'il en veut un |
+### c. Le projet Vercel
+
+Vercel → **Add New → Project** → importer le dépôt `mycall` → nom : celui du client.
+
+Avant **Deploy**, coller dans **Environment Variables** les 7 valeurs affichées
+par le script — `CONVEX_DEPLOY_KEY` étant la clé qu'il m'a transmise.
+
+> **`NEXT_PUBLIC_CONVEX_URL` est indispensable au rendu serveur.** Sans elle, la
+> page de réservation répond 404, sans message d'erreur.
 
 ### d. Google Cloud
 
-*Credentials* → mon client OAuth → **Authorized redirect URIs** → ajouter :
-
-```
-https://<sa-base>.convex.site/google/callback
-```
-
-Oublier cette ligne donne une erreur de connexion d'agenda qui ne dit pas d'où
-elle vient.
+*Credentials* → mon client OAuth → **Authorized redirect URIs** → ajouter
+l'adresse affichée par le script.
 
 ### e. Le domaine
 
-Vercel → projet → **Domains** → `rdv.son-domaine.com`.
+Vercel → projet → **Settings → Domains** → `rdv.son-domaine.com`.
 Je lui transmets la cible CNAME affichée ; c'est lui qui la pose.
 
 ---
 
 ## TEMPS 3 — Je vérifie avant de livrer
 
-Rien n'est livré tant que ces cinq points ne sont pas verts.
+```bash
+bun run onboard clients/<client>.json --check
+```
 
-| Contrôle | Attendu |
-|---|---|
-| `rdv.son-domaine.com/login` | 200, à **sa** marque |
-| `/api/health` | `"convex":"ok"` |
-| Journal de build Vercel | `Deployed Convex functions to [REDACTED]` |
-| `<sa-base>.convex.site/webhooks/stripe` en POST vide | 400 |
-| `<sa-base>.convex.site/google/callback` sans paramètre | 302 vers **son** domaine |
+Rien n'est livré tant que les sept contrôles ne sont pas verts : variables,
+page de connexion à sa marque, base joignable, bonne base déployée, retour
+Google vers son domaine, adresse acceptée par Google.
 
-> **`[REDACTED]` dans le journal est le signal d'une clé de production.** Une
-> URL en clair signifie une clé *Preview* : le build déploie alors dans une base
-> éphémère et vide, et les pages répondent 404 sans que rien n'indique pourquoi.
-> C'est arrivé, ça coûte une heure.
+> Dans le journal de build Vercel, `Deployed Convex functions to [REDACTED]`
+> signale une clé de production. Une URL en clair : clé *Preview*, le build
+> déploie dans une base éphémère et vide.
 
-Puis je le préviens : il fait ses étapes 6 (compte, agenda, disponibilités,
+Puis je le préviens : il fait son étape 6 (compte, agenda, disponibilités,
 premier événement).
 
 ---
@@ -155,11 +145,12 @@ hébergeur de ses données. À formaliser **avant** de démarrer :
 | Symptôme | Cause |
 |---|---|
 | Page de réservation en 404, tout le reste marche | `NEXT_PUBLIC_CONVEX_URL` absente, ou clé Preview au lieu de Production |
-| `record with that host already exists` | domaine racine ajouté au lieu du sous-domaine |
+| Le script dit « base inaccessible » | Invitation dans son équipe Convex pas encore acceptée |
+| `record with that host already exists` | Domaine racine ajouté au lieu du sous-domaine |
 | `Proxy Detected` dans Vercel | CNAME en *Proxied* → passer en **DNS only** |
 | Lien copié en `*.vercel.app` | `NEXT_PUBLIC_APP_URL` absente ou pas redéployée |
-| Mot de passe oublié sans effet | `SITE_URL` absente côté Convex |
-| Emails qui n'arrivent qu'au client | domaine pas vérifié dans Resend |
-| Invitation d'agenda au nom d'un Gmail inconnu | normal sans Google Workspace — nos emails prennent le relais |
-| Paiements Stripe absents du CRM | webhook créé en mode Test, clé passée en Live |
-| Inscription refusée | email absent de `SIGNUP_ALLOWED_EMAILS` |
+| Mot de passe oublié sans effet | `SITE_URL` absente — relancer le script |
+| Aucun email ne part | Domaine pas vérifié dans Resend, ou `RESEND_API_KEY` pas encore posée |
+| Invitation d'agenda au nom d'un Gmail inconnu | Normal sans Google Workspace — nos emails prennent le relais |
+| Paiements Stripe absents du CRM | Webhook créé en mode Test, clé passée en Live |
+| Inscription refusée | Email absent de `SIGNUP_ALLOWED_EMAILS` → corriger le fichier, relancer |

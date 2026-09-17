@@ -40,10 +40,16 @@ vous les gardez.
    - Expiration : **No expiration**
    - Permissions : cochez **`deployment:deploy`** et **rien d'autre**
 5. Transmettez-nous cette clé
+6. **Team Settings → Members → Invite** → invitez l'adresse que nous vous
+   indiquerons
 
-> 🔒 Cette clé nous permet d'installer les mises à jour, **et rien de plus** :
+> 🔒 La clé nous permet d'installer les mises à jour, **et rien de plus** :
 > elle ne donne accès ni à vos données, ni à vos autres réglages. Envoyez-la
 > par un canal privé — pas dans un email en clair.
+>
+> L'invitation, elle, sert à la configuration initiale. Une fois l'outil en
+> ligne, vous pouvez nous retirer : les mises à jour continueront de passer par
+> la clé.
 
 ---
 
@@ -58,7 +64,10 @@ Sans cette étape, aucune confirmation ne parviendra à vos prospects.
    - ⚠️ Si vous utilisez Cloudflare : ces entrées doivent être en **DNS only**
      (nuage **gris**, pas orange)
 4. Cliquez **Verify** — comptez quelques minutes
-5. **API Keys → Create API Key** → transmettez-la nous
+5. **API Keys → Create API Key** → copiez-la
+6. Collez-la **vous-même** dans votre base : sur convex.dev, votre projet →
+   **Production → Settings → Environment Variables** → nom `RESEND_API_KEY`,
+   valeur : la clé. Elle ne transite pas par nous.
 
 ---
 
@@ -124,13 +133,13 @@ Nous vous préviendrons quand l'application sera en ligne. Vous ferez alors :
 
 | Élément | Étape |
 |---|---|
-| Clé de déploiement Convex | 1 |
-| Clé API Resend + adresse d'expédition | 2 |
+| Clé de déploiement Convex + invitation dans votre équipe | 1 |
+| L'adresse d'expédition, une fois le domaine vérifié | 2 |
 | Le sous-domaine choisi | 3 décisions |
 | L'email administrateur | 3 décisions |
 
-Tout le reste, vous le saisissez vous-même dans l'application. Nous ne
-manipulons jamais votre clé Stripe ni vos mots de passe.
+Tout le reste, vous le saisissez vous-même. Nous ne manipulons jamais vos clés
+Resend et Stripe, ni vos mots de passe.
 
 ---
 
@@ -147,5 +156,6 @@ Votre base de données est chez vous : vous conservez l'intégralité de vos
 prospects et de votre historique.
 
 **Qui a accès à mes données ?**
-Elles sont dans votre compte Convex. Nous n'y accédons que si vous nous le
-demandez pour une intervention.
+Elles sont dans votre compte Convex. Nous y accédons pendant la mise en route,
+le temps de configurer votre base ; vous pouvez ensuite nous retirer de votre
+équipe, et nous rappeler pour une intervention.
