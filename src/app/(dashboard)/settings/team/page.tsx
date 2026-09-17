@@ -12,6 +12,7 @@ import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteMemberDialog } from "@/components/settings/team/invite-member-dialog";
 import { PendingInvitations } from "@/components/settings/team/pending-invitations";
+import { SenderEmailLine } from "@/components/settings/team/sender-email-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,11 @@ const ROLE_OPTIONS = INVITABLE_ROLES;
 export default function TeamPage() {
 	const profile = useQuery(api.users.getMyProfile);
 	const allUsers = useQuery(api.users.listAllUsers);
+	const isAdminProfile = canAdminister(profile);
+	const senderSettings = useQuery(
+		api.users.getSenderSettings,
+		isAdminProfile ? {} : "skip",
+	);
 	const updateRole = useMutation(api.users.updateUserRole);
 	const toggleAdmin = useMutation(api.users.toggleAdmin);
 	const removeUser = useMutation(api.users.removeUser);
@@ -201,6 +207,13 @@ export default function TeamPage() {
 											<p className="text-xs text-[var(--ink-ghost)] truncate">
 												{user.email}
 											</p>
+											{senderSettings && (
+												<SenderEmailLine
+													user={user}
+													displayName={displayName}
+													settings={senderSettings}
+												/>
+											)}
 										</div>
 									</div>
 

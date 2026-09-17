@@ -515,6 +515,8 @@ export const getLeadForSequenceInternal = internalQuery({
 			firstName: lead.firstName ?? null,
 			lastName: lead.lastName ?? null,
 			optedOut: Boolean(lead.emailOptOutAt),
+			// Les relances partent de l'adresse de son closer, s'il en a une.
+			closerUserId: lead.closerUserId ?? null,
 		};
 	},
 });

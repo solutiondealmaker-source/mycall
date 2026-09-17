@@ -34,6 +34,7 @@ import {
 	sequenceStepTemplate,
 } from "./lib/emailTemplates";
 import { buildIcs, googleCalendarUrl, outlookCalendarUrl } from "./lib/ics";
+import { defaultFrom, type Sender, senderFor } from "./lib/sender";
 
 // ============================================================
 // Config
@@ -45,7 +46,7 @@ function getResendKey(): string {
 	return key;
 }
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+const FROM_EMAIL = defaultFrom();
 
 // Base des liens envoyés aux prospects (annulation, reprogrammation) et à
 // l'équipe (accès au CRM). APP_BASE_URL est la variable posée à l'installation
@@ -68,13 +69,32 @@ interface ResendResult {
 	error?: string;
 }
 
+// Envoi depuis l'adresse d'un membre quand il en a une. Si Resend la refuse
+// (domaine retiré, adresse mal saisie), l'email repart depuis l'adresse par
+// défaut : le prospect le reçoit quand même, et les réponses vont toujours au
+// membre.
 async function resendSend(payload: {
 	to: string;
 	subject: string;
 	html: string;
 	// Pièces jointes (le .ics du rendez-vous) — contenu encodé en base64.
 	attachments?: Array<{ filename: string; content: string }>;
+	sender?: Sender | null;
 }): Promise<ResendResult> {
+	if (payload.sender) {
+		const first = await resendPost(payload, payload.sender.from);
+		if (first.ok) return first;
+		console.warn(
+			`[emails] envoi refusé depuis ${payload.sender.replyTo}, repli sur l'adresse par défaut`,
+		);
+	}
+	return resendPost(payload, FROM_EMAIL);
+}
+
+async function resendPost(
+	payload: Parameters<typeof resendSend>[0],
+	from: string,
+): Promise<ResendResult> {
 	try {
 		const res = await fetch("https://api.resend.com/emails", {
 			method: "POST",
@@ -83,10 +103,11 @@ async function resendSend(payload: {
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-				from: FROM_EMAIL,
+				from,
 				to: [payload.to],
 				subject: payload.subject,
 				html: payload.html,
+				...(payload.sender ? { reply_to: payload.sender.replyTo } : {}),
 				...(payload.attachments?.length
 					? { attachments: payload.attachments }
 					: {}),
@@ -254,6 +275,7 @@ export const sendBookingConfirmation = internalAction({
 			subject: `Confirmation — ${event.name} le ${dateStr}`,
 			html,
 			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
+			sender: senderFor(host),
 		});
 
 		await logEmail(ctx, {
@@ -396,6 +418,7 @@ export const sendReminder = internalAction({
 			to: booking.prospectEmail,
 			subject: `Rappel — votre rendez-vous dans 2h (${event.name})`,
 			html,
+			sender: senderFor(host),
 		});
 
 		await logEmail(ctx, {
@@ -427,6 +450,10 @@ export const sendCancellation = internalAction({
 		});
 		if (!event) return;
 
+		const host = await ctx.runQuery(internal.emailsInternal.getUserForEmail, {
+			userId: booking.hostId,
+		});
+
 		const dateStr = formatDateFR(booking.startTime, booking.timezone);
 		const rescheduleUrl = event.allowReschedule
 			? `${SITE_URL}/book/reschedule/${booking.rescheduleToken}`
@@ -444,6 +471,7 @@ export const sendCancellation = internalAction({
 			to: booking.prospectEmail,
 			subject: `Annulation — ${event.name}`,
 			html,
+			sender: senderFor(host),
 		});
 
 		await logEmail(ctx, {
@@ -503,6 +531,7 @@ export const sendReschedule = internalAction({
 			// Même UID que la confirmation : l'agenda du prospect déplace l'entrée
 			// existante au lieu d'en créer une seconde.
 			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
+			sender: senderFor(host),
 		});
 
 		await logEmail(ctx, {
@@ -671,6 +700,12 @@ export const sendSequenceStep = internalAction({
 		const fill = (s: string) =>
 			s.replace(/\{\{\s*prenom\s*\}\}/gi, firstName).trim();
 
+		const closer = lead.closerUserId
+			? await ctx.runQuery(internal.emailsInternal.getUserForEmail, {
+					userId: lead.closerUserId,
+				})
+			: null;
+
 		const result = await resendSend({
 			to: lead.email,
 			subject: fill(subject),
@@ -678,6 +713,7 @@ export const sendSequenceStep = internalAction({
 				bodyText: fill(body),
 				unsubscribeUrl: `${SITE_URL}/unsubscribe/${token}`,
 			}),
+			sender: senderFor(closer),
 		});
 
 		await logEmail(ctx, {

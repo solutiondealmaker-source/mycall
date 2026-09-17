@@ -4,6 +4,54 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireAuth } from "./lib/auth";
+import {
+	defaultFrom,
+	extractAddress,
+	isOnSenderDomain,
+	isValidEmail,
+	senderDomain,
+} from "./lib/sender";
+
+// ============================================================
+// Adresses d'envoi
+// ============================================================
+
+// Domaine autorisé et adresse par défaut, pour la page Équipe.
+export const getSenderSettings = query({
+	args: {},
+	handler: async (ctx) => {
+		await requireAdmin(ctx);
+		return {
+			domain: senderDomain(),
+			defaultAddress: extractAddress(defaultFrom()),
+		};
+	},
+});
+
+// Définit (ou retire, avec null) l'adresse d'envoi d'un membre.
+export const setSenderEmail = mutation({
+	args: { userId: v.id("users"), senderEmail: v.union(v.string(), v.null()) },
+	handler: async (ctx, { userId, senderEmail }) => {
+		await requireAdmin(ctx);
+		const target = await ctx.db.get(userId);
+		if (!target) throw new Error("Utilisateur introuvable");
+
+		const value = senderEmail?.trim().toLowerCase() || null;
+		if (value !== null) {
+			if (!isValidEmail(value)) throw new Error("Adresse email invalide");
+			if (!isOnSenderDomain(value)) {
+				const domain = senderDomain();
+				throw new Error(
+					domain
+						? `L'adresse doit se terminer par @${domain} : c'est le seul domaine vérifié pour l'envoi.`
+						: "Aucun domaine d'envoi n'est configuré sur cette instance.",
+				);
+			}
+		}
+		await ctx.db.patch(userId, { senderEmail: value ?? undefined });
+		return { ok: true };
+	},
+});
 
 // ============================================================
 // QUERIES

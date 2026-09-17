@@ -46,6 +46,8 @@ export default defineSchema({
 		),
 		isAdmin: v.optional(v.boolean()),
 		defaultTimezone: v.optional(v.string()), // ex: "Europe/Paris"
+		// Adresse d'envoi des emails de ses rendez-vous (voir lib/sender.ts).
+		senderEmail: v.optional(v.string()),
 	}).index("email", ["email"]),
 
 	// Invitations à rejoindre l'instance. Une invitation en attente autorise
