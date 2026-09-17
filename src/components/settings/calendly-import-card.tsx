@@ -105,7 +105,8 @@ export function CalendlyImportCard() {
 			const res = await importEventTypes({ uris: selected });
 			const parts = [
 				res.created.length && `${res.created.length} importé(s)`,
-				res.existing.length && `${res.existing.length} déjà présent(s)`,
+				res.updated.length && `${res.updated.length} complété(s)`,
+				res.existing.length && `${res.existing.length} déjà à jour`,
 				res.failed.length && `${res.failed.length} en échec`,
 			].filter(Boolean);
 			(res.failed.length ? toast.warning : toast.success)(
@@ -261,7 +262,6 @@ export function CalendlyImportCard() {
 											>
 												<Checkbox
 													id={`cal-${t.uri}`}
-													disabled={t.alreadyImported}
 													checked={selected.includes(t.uri)}
 													onCheckedChange={(c) =>
 														setSelected((prev) =>
@@ -283,7 +283,7 @@ export function CalendlyImportCard() {
 												</div>
 												{t.alreadyImported && (
 													<span className="text-[11px] text-[var(--success)] shrink-0">
-														Déjà importé
+														Déjà importé · recocher pour compléter
 													</span>
 												)}
 											</label>

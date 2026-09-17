@@ -51,7 +51,11 @@ interface CalendlyEventType {
 	slug?: string | null;
 	duration: number;
 	color?: string | null;
+	// La version texte est tronquée par Calendly (165 caractères) : seule la
+	// version HTML est complète.
 	description_plain?: string | null;
+	description_html?: string | null;
+	locations?: Array<{ kind: string; location?: string | null }> | null;
 	// round_robin | multi_pool pour un événement partagé entre plusieurs hôtes
 	pooling_type?: string | null;
 	custom_questions?: CalendlyQuestion[];
@@ -447,6 +451,43 @@ const QUESTION_TYPE = {
 	multi_select: "multi_select",
 } as const;
 
+// Description complète, sans les paragraphes vides que Calendly ajoute.
+function descriptionFrom(t: CalendlyEventType): string | undefined {
+	const html = (t.description_html ?? "")
+		.replace(/<p>(\s|<br\s*\/?>|&nbsp;)*<\/p>/gi, "")
+		.trim();
+	const text = html
+		.replace(/<[^>]+>/g, "")
+		.replace(/&nbsp;/g, " ")
+		.trim();
+	if (text) return html;
+	return t.description_plain?.trim() || undefined;
+}
+
+// Lieu du rendez-vous. Un lien Meet est généré par l'appli quand Calendly en
+// proposait un ; sinon le lieu est repris en texte.
+function locationFrom(
+	t: CalendlyEventType,
+): { location: "googleMeet" | "custom"; customLocation?: string } | undefined {
+	const locations = t.locations ?? [];
+	if (locations.some((l) => l.kind === "google_conference")) {
+		return { location: "googleMeet" };
+	}
+	const first = locations[0];
+	if (!first) return undefined;
+	const label: Record<string, string> = {
+		zoom_conference: "Zoom",
+		microsoft_teams_conference: "Microsoft Teams",
+		webex_conference: "Webex",
+		gotomeeting_conference: "GoToMeeting",
+		outbound_call: "Appel téléphonique (nous vous appelons)",
+		inbound_call: "Appel téléphonique",
+		ask_invitee: "À définir avec vous",
+	};
+	const text = first.location?.trim() || label[first.kind];
+	return text ? { location: "custom", customLocation: text } : undefined;
+}
+
 function slugify(input: string): string {
 	return (
 		input
@@ -468,6 +509,11 @@ export const createEventFromCalendlyInternal = internalMutation({
 		durationMinutes: v.number(),
 		color: v.optional(v.string()),
 		description: v.optional(v.string()),
+		// Texte tronqué renvoyé par Calendly, pour reconnaître une description
+		// importée par une version précédente et la compléter.
+		truncatedDescription: v.optional(v.string()),
+		location: v.optional(v.union(v.literal("googleMeet"), v.literal("custom"))),
+		customLocation: v.optional(v.string()),
 		roundRobin: v.optional(v.boolean()),
 		questions: v.array(
 			v.object({
@@ -479,9 +525,35 @@ export const createEventFromCalendlyInternal = internalMutation({
 			}),
 		),
 	},
-	handler: async (ctx, args): Promise<"created" | "exists"> => {
+	handler: async (ctx, args): Promise<"created" | "updated" | "exists"> => {
 		const events = await ctx.db.query("events").collect();
-		if (events.some((e) => e.calendlyUri === args.uri)) return "exists";
+		const already = events.find((e) => e.calendlyUri === args.uri);
+		if (already) {
+			// Déjà importé : on complète ce qui manque, sans jamais écraser ce qui a
+			// été modifié dans l'appli.
+			const current = already.description?.trim() ?? "";
+			const patch = {
+				...(args.description &&
+					args.description !== already.description &&
+					(!current || current === args.truncatedDescription?.trim()) && {
+						description: args.description,
+					}),
+				...(!already.location &&
+					args.location && {
+						location: args.location,
+						customLocation: args.customLocation,
+					}),
+			};
+			const hasQuestions = await ctx.db
+				.query("eventQuestions")
+				.withIndex("by_eventId", (q) => q.eq("eventId", already._id))
+				.first();
+			const addQuestions = !hasQuestions && args.questions.length > 0;
+			if (Object.keys(patch).length === 0 && !addQuestions) return "exists";
+			if (Object.keys(patch).length > 0) await ctx.db.patch(already._id, patch);
+			if (addQuestions) await insertQuestions(ctx, already._id, args.questions);
+			return "updated";
+		}
 
 		const taken = new Set(events.map((e) => e.slug));
 		const base = slugify(args.slug || args.name);
@@ -501,6 +573,8 @@ export const createEventFromCalendlyInternal = internalMutation({
 				args.color && /^#[0-9a-f]{6}$/i.test(args.color)
 					? args.color
 					: undefined,
+			location: args.location,
+			customLocation: args.customLocation,
 			tagSource: "calendly",
 			calendlyUri: args.uri,
 			// Inactif : à relire (disponibilités, hôtes) avant de le publier.
@@ -516,35 +590,54 @@ export const createEventFromCalendlyInternal = internalMutation({
 			createdAt: Date.now(),
 		});
 
-		let order = 0;
-		for (const q of args.questions) {
-			const type =
-				QUESTION_TYPE[q.type as keyof typeof QUESTION_TYPE] ?? "short_text";
-			const choices = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
-			const isSelect = type === "single_select" || type === "multi_select";
-			await ctx.db.insert("eventQuestions", {
-				eventId,
-				order: order++,
-				type,
-				label: q.label,
-				required: q.required,
-				options: isSelect
-					? q.includeOther && !choices.includes("Autre")
-						? [...choices, "Autre"]
-						: choices
-					: undefined,
-			});
-		}
+		await insertQuestions(ctx, eventId, args.questions);
 		return "created";
 	},
 });
+
+async function insertQuestions(
+	ctx: MutationCtx,
+	eventId: Id<"events">,
+	questions: Array<{
+		type: string;
+		label: string;
+		required: boolean;
+		options?: string[];
+		includeOther: boolean;
+	}>,
+) {
+	let order = 0;
+	for (const q of questions) {
+		const type =
+			QUESTION_TYPE[q.type as keyof typeof QUESTION_TYPE] ?? "short_text";
+		const choices = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
+		const isSelect = type === "single_select" || type === "multi_select";
+		await ctx.db.insert("eventQuestions", {
+			eventId,
+			order: order++,
+			type,
+			label: q.label,
+			required: q.required,
+			options: isSelect
+				? q.includeOther && !choices.includes("Autre")
+					? [...choices, "Autre"]
+					: choices
+				: undefined,
+		});
+	}
+}
 
 export const importEventTypes = action({
 	args: { uris: v.array(v.string()) },
 	handler: async (
 		ctx,
 		{ uris },
-	): Promise<{ created: string[]; existing: string[]; failed: string[] }> => {
+	): Promise<{
+		created: string[];
+		updated: string[];
+		existing: string[];
+		failed: string[];
+	}> => {
 		const userId = await ctx.runQuery(
 			internal.calendly.assertAdminInternal,
 			{},
@@ -557,6 +650,7 @@ export const importEventTypes = action({
 
 		const result = {
 			created: [] as string[],
+			updated: [] as string[],
 			existing: [] as string[],
 			failed: [] as string[],
 		};
@@ -588,12 +682,14 @@ export const importEventTypes = action({
 						slug: t.slug ?? undefined,
 						durationMinutes: t.duration,
 						color: t.color ?? undefined,
-						description: t.description_plain ?? undefined,
+						description: descriptionFrom(t),
+						truncatedDescription: t.description_plain ?? undefined,
+						...locationFrom(t),
 						roundRobin: Boolean(t.pooling_type),
 						questions,
 					},
 				);
-				(status === "created" ? result.created : result.existing).push(t.name);
+				result[status === "exists" ? "existing" : status].push(t.name);
 			} catch (err) {
 				console.error(`[calendly] import ${uri} : ${errorMessage(err)}`);
 				result.failed.push(uri);
