@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/../convex/_generated/api";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { CalendlyImportCard } from "@/components/settings/calendly-import-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -324,6 +325,8 @@ export default function IntegrationsPage() {
 					n'expirent pas.
 				</p>
 			</motion.div>
+
+			<CalendlyImportCard />
 		</div>
 	);
 }

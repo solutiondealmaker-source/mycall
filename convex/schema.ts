@@ -129,6 +129,9 @@ export default defineSchema({
 		// Attribution setter
 		setterId: v.optional(v.id("users")),
 
+		// Type d'événement Calendly d'origine, quand il a été importé.
+		calendlyUri: v.optional(v.string()),
+
 		// Templates invitation Google Calendar
 		calendarGreeting: v.optional(v.string()),
 		calendarBody: v.optional(v.string()),
@@ -564,9 +567,39 @@ export default defineSchema({
 		stripeWebhookSecret: v.optional(v.string()), // whsec_… (signature)
 		stripeEnabled: v.optional(v.boolean()),
 		stripeCurrency: v.optional(v.string()), // ex: "eur"
+		// Calendly — jeton d'accès personnel, jamais renvoyé au client.
+		calendlyToken: v.optional(v.string()),
+		calendlyUserUri: v.optional(v.string()),
+		calendlyOrganizationUri: v.optional(v.string()),
+		calendlyAccountLabel: v.optional(v.string()), // "Nom <email>", affichage
 		updatedAt: v.number(),
 		updatedByUserId: v.optional(v.id("users")),
 	}).index("by_singleton", ["singleton"]),
+
+	// Import Calendly : un rendez-vous (invité) déjà importé n'est jamais
+	// réimporté, quel que soit le nombre de lancements.
+	calendlyImportedInvitees: defineTable({
+		inviteeUri: v.string(),
+		leadId: v.id("leads"),
+		importedAt: v.number(),
+	}).index("by_inviteeUri", ["inviteeUri"]),
+
+	// Suivi d'un import de l'historique Calendly, page par page.
+	calendlyImportJobs: defineTable({
+		status: v.union(
+			v.literal("running"),
+			v.literal("done"),
+			v.literal("failed"),
+		),
+		startedByUserId: v.id("users"),
+		startedAt: v.number(),
+		finishedAt: v.optional(v.number()),
+		meetingsSeen: v.number(),
+		leadsCreated: v.number(),
+		leadsUpdated: v.number(),
+		alreadyImported: v.number(),
+		error: v.optional(v.string()),
+	}).index("by_startedAt", ["startedAt"]),
 
 	// Paramètres du pipeline — singleton (1 seule row par déploiement)
 	pipelineSettings: defineTable({

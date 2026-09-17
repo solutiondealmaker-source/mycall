@@ -12,6 +12,7 @@ import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as bookings from "../bookings.js";
+import type * as calendly from "../calendly.js";
 import type * as catalogues from "../catalogues.js";
 import type * as cron_jobs from "../cron_jobs.js";
 import type * as crons from "../crons.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   auth: typeof auth;
   bookings: typeof bookings;
+  calendly: typeof calendly;
   catalogues: typeof catalogues;
   cron_jobs: typeof cron_jobs;
   crons: typeof crons;
