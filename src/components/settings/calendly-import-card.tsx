@@ -113,7 +113,7 @@ export function CalendlyImportCard() {
 				res.created.length
 					? {
 							description:
-								"Ils sont inactifs : règle les disponibilités et relis-les avant de les activer.",
+								"Ils sont inactifs : règle les disponibilités et relis-les avant de les activer. Les leads déjà importés y sont rattachés automatiquement d'ici quelques minutes.",
 						}
 					: undefined,
 			);

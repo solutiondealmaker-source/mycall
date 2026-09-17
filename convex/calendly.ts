@@ -52,6 +52,8 @@ interface CalendlyEventType {
 	duration: number;
 	color?: string | null;
 	description_plain?: string | null;
+	// round_robin | multi_pool pour un événement partagé entre plusieurs hôtes
+	pooling_type?: string | null;
 	custom_questions?: CalendlyQuestion[];
 }
 
@@ -180,6 +182,54 @@ async function scopedUrl(
 		}
 	}
 	return `${API}${path}?user=${encodeURIComponent(creds.userUri)}&${extra}`;
+}
+
+// Tous les types d'événement visibles avec ce jeton. La liste de
+// l'organisation ne contient pas les événements partagés (round robin, pools
+// d'hôtes) : Calendly ne les renvoie que dans la liste de chacun de leurs
+// hôtes. On complète donc avec celle de chaque membre, sans doublon.
+async function listAllEventTypes(
+	token: string,
+	creds: { userUri: string; organizationUri?: string },
+): Promise<CalendlyEventType[]> {
+	const byUri = new Map<string, CalendlyEventType>();
+	const add = (types: CalendlyEventType[]) => {
+		for (const t of types) byUri.set(t.uri, t);
+	};
+
+	add(
+		await listAll<CalendlyEventType>(
+			token,
+			await scopedUrl(token, creds, "/event_types", "count=100"),
+		),
+	);
+
+	const userUris = new Set([creds.userUri]);
+	if (creds.organizationUri) {
+		try {
+			const members = await listAll<{ user: { uri: string } }>(
+				token,
+				`${API}/organization_memberships?organization=${encodeURIComponent(creds.organizationUri)}&count=100`,
+			);
+			for (const m of members) userUris.add(m.user.uri);
+		} catch (err) {
+			// Sans droits d'administration, seule sa propre liste est lisible.
+			if (!(err instanceof CalendlyError) || err.status !== 403) throw err;
+		}
+	}
+	for (const userUri of userUris) {
+		try {
+			add(
+				await listAll<CalendlyEventType>(
+					token,
+					`${API}/event_types?user=${encodeURIComponent(userUri)}&count=100`,
+				),
+			);
+		} catch (err) {
+			if (!(err instanceof CalendlyError) || err.status !== 403) throw err;
+		}
+	}
+	return [...byUri.values()];
 }
 
 function errorMessage(err: unknown): string {
@@ -367,13 +417,7 @@ export const listEventTypes = action({
 		);
 		if (!creds) throw new Error("Calendly n'est pas connecté.");
 
-		const url = await scopedUrl(
-			creds.token,
-			creds,
-			"/event_types",
-			"count=100",
-		);
-		const types = await listAll<CalendlyEventType>(creds.token, url);
+		const types = await listAllEventTypes(creds.token, creds);
 		const imported = new Set(
 			await ctx.runQuery(internal.calendly.importedEventUrisInternal, {}),
 		);
@@ -424,6 +468,7 @@ export const createEventFromCalendlyInternal = internalMutation({
 		durationMinutes: v.number(),
 		color: v.optional(v.string()),
 		description: v.optional(v.string()),
+		roundRobin: v.optional(v.boolean()),
 		questions: v.array(
 			v.object({
 				type: v.string(),
@@ -449,7 +494,8 @@ export const createEventFromCalendlyInternal = internalMutation({
 			description: args.description || undefined,
 			durationMinutes: args.durationMinutes,
 			timezone: "Europe/Paris",
-			priorityMode: "manual",
+			// Événement partagé sur Calendly : distribution équitable entre hôtes.
+			priorityMode: args.roundRobin ? "round_robin" : "manual",
 			allowReschedule: true,
 			color:
 				args.color && /^#[0-9a-f]{6}$/i.test(args.color)
@@ -543,6 +589,7 @@ export const importEventTypes = action({
 						durationMinutes: t.duration,
 						color: t.color ?? undefined,
 						description: t.description_plain ?? undefined,
+						roundRobin: Boolean(t.pooling_type),
 						questions,
 					},
 				);
@@ -551,6 +598,12 @@ export const importEventTypes = action({
 				console.error(`[calendly] import ${uri} : ${errorMessage(err)}`);
 				result.failed.push(uri);
 			}
+		}
+
+		// Des rendez-vous ont pu être importés avant ces événements : on les y
+		// rattache.
+		if (result.created.length > 0) {
+			await ctx.scheduler.runAfter(0, internal.calendly.runLinkPage, {});
 		}
 		return result;
 	},
@@ -699,6 +752,7 @@ export const runHistoryPage = internalAction({
 				});
 			} else {
 				await ctx.runMutation(internal.calendly.finishJobInternal, { jobId });
+				await ctx.scheduler.runAfter(0, internal.calendly.runLinkPage, {});
 			}
 		} catch (err) {
 			console.error(`[calendly] import historique : ${errorMessage(err)}`);
@@ -885,7 +939,121 @@ export const importInviteeInternal = internalMutation({
 		await ctx.db.insert("calendlyImportedInvitees", {
 			inviteeUri: invitee.uri,
 			leadId,
+			eventTypeUri: meeting.eventTypeUri,
 			importedAt: now,
 		});
+	},
+});
+
+// ============================================================
+// Rattachement des leads importés à leurs événements
+// ============================================================
+// Quand les rendez-vous sont importés avant les événements, les leads restent
+// sans événement. Ce passage les rattache, une page à la fois. Il ne touche
+// qu'aux leads sans événement : un lead reçoit celui de son premier
+// rendez-vous importé.
+
+export const linkPageInternal = internalQuery({
+	args: { cursor: v.union(v.string(), v.null()) },
+	handler: async (ctx, { cursor }) => {
+		const page = await ctx.db
+			.query("calendlyImportedInvitees")
+			.order("asc")
+			.paginate({ numItems: 100, cursor });
+		return {
+			items: page.page.map((r) => ({
+				id: r._id,
+				inviteeUri: r.inviteeUri,
+				eventTypeUri: r.eventTypeUri ?? null,
+			})),
+			isDone: page.isDone,
+			continueCursor: page.continueCursor,
+		};
+	},
+});
+
+export const applyLinksInternal = internalMutation({
+	args: {
+		updates: v.array(
+			v.object({
+				id: v.id("calendlyImportedInvitees"),
+				eventTypeUri: v.string(),
+			}),
+		),
+	},
+	handler: async (ctx, { updates }) => {
+		const events = await ctx.db.query("events").collect();
+		const byUri = new Map(
+			events.flatMap((e) =>
+				e.calendlyUri ? [[e.calendlyUri, e] as const] : [],
+			),
+		);
+		for (const u of updates) {
+			const record = await ctx.db.get(u.id);
+			if (!record) continue;
+			if (!record.eventTypeUri) {
+				await ctx.db.patch(u.id, { eventTypeUri: u.eventTypeUri });
+			}
+			const event = byUri.get(u.eventTypeUri);
+			if (!event) continue;
+			const lead = await ctx.db.get(record.leadId);
+			if (lead && !lead.eventId) {
+				await ctx.db.patch(lead._id, {
+					eventId: event._id,
+					eventSlug: event.slug,
+				});
+			}
+		}
+	},
+});
+
+export const runLinkPage = internalAction({
+	args: { cursor: v.optional(v.string()) },
+	handler: async (ctx, { cursor }) => {
+		const page = await ctx.runQuery(internal.calendly.linkPageInternal, {
+			cursor: cursor ?? null,
+		});
+
+		// Les anciens imports ne gardaient pas le type d'événement : on le relit
+		// sur le rendez-vous, une seule fois par rendez-vous.
+		const creds = page.items.some((r) => !r.eventTypeUri)
+			? await ctx.runQuery(internal.calendly.getCredentialsInternal, {})
+			: null;
+		const meetingTypes = new Map<string, string | null>();
+		const updates: Array<{
+			id: Id<"calendlyImportedInvitees">;
+			eventTypeUri: string;
+		}> = [];
+
+		for (const r of page.items) {
+			let typeUri = r.eventTypeUri;
+			if (!typeUri && creds) {
+				const meetingUri = r.inviteeUri.split("/invitees/")[0];
+				if (!meetingTypes.has(meetingUri)) {
+					try {
+						const { resource } = await calendlyGet<{
+							resource: CalendlyMeeting;
+						}>(creds.token, meetingUri);
+						meetingTypes.set(meetingUri, resource.event_type ?? null);
+					} catch (err) {
+						console.error(
+							`[calendly] rattachement ${meetingUri} : ${errorMessage(err)}`,
+						);
+						meetingTypes.set(meetingUri, null);
+					}
+				}
+				typeUri = meetingTypes.get(meetingUri) ?? null;
+			}
+			if (typeUri) updates.push({ id: r.id, eventTypeUri: typeUri });
+		}
+
+		if (updates.length > 0) {
+			await ctx.runMutation(internal.calendly.applyLinksInternal, { updates });
+		}
+		if (!page.isDone) {
+			await ctx.scheduler.runAfter(0, internal.calendly.runLinkPage, {
+				cursor: page.continueCursor,
+			});
+		}
 	},
 });

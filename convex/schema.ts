@@ -581,6 +581,9 @@ export default defineSchema({
 	calendlyImportedInvitees: defineTable({
 		inviteeUri: v.string(),
 		leadId: v.id("leads"),
+		// Type d'événement Calendly du rendez-vous, pour rattacher le lead à
+		// l'événement quand celui-ci est importé plus tard.
+		eventTypeUri: v.optional(v.string()),
 		importedAt: v.number(),
 	}).index("by_inviteeUri", ["inviteeUri"]),
 
