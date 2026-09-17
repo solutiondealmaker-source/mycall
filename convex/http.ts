@@ -416,4 +416,244 @@ http.route({
 	}),
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// API ENTRANTE — Make, Zapier, n8n…
+//
+// Authentification par clé (Paramètres → Intégrations) : en-tête
+// « Authorization: Bearer mc_… », « X-API-Key », ou paramètre ?api_key=.
+// Corps accepté en JSON ou en formulaire (le format par défaut de Zapier), en
+// snake_case comme en camelCase.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const json = (body: unknown, status = 200) =>
+	new Response(JSON.stringify(body), {
+		status,
+		headers: { "Content-Type": "application/json; charset=utf-8" },
+	});
+
+async function authenticate(
+	ctx: Parameters<Parameters<typeof httpAction>[0]>[0],
+	request: Request,
+) {
+	const url = new URL(request.url);
+	const header = request.headers.get("authorization") ?? "";
+	const key = (
+		/^Bearer\s+(.+)$/i.exec(header)?.[1] ??
+		request.headers.get("x-api-key") ??
+		url.searchParams.get("api_key") ??
+		""
+	).trim();
+	if (!key) return null;
+	return await ctx.runMutation(internal.automations.verifyApiKeyInternal, {
+		keyHash: await sha256Hex(key),
+	});
+}
+
+async function sha256Hex(input: string): Promise<string> {
+	const digest = await crypto.subtle.digest(
+		"SHA-256",
+		new TextEncoder().encode(input),
+	);
+	return Array.from(new Uint8Array(digest))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+}
+
+type Body = Record<string, unknown>;
+
+async function readBody(request: Request): Promise<Body> {
+	const type = request.headers.get("content-type") ?? "";
+	const text = await request.text();
+	if (!text.trim()) return {};
+	if (type.includes("application/x-www-form-urlencoded")) {
+		return Object.fromEntries(new URLSearchParams(text));
+	}
+	try {
+		const parsed = JSON.parse(text);
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? parsed
+			: {};
+	} catch {
+		throw new Error("Corps de requête illisible : envoie du JSON.");
+	}
+}
+
+// Lit un champ texte sous ses deux écritures : first_name ou firstName.
+function field(body: Body, snake: string): string | undefined {
+	const camel = snake.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+	const value = body[snake] ?? body[camel];
+	if (value === undefined || value === null) return undefined;
+	const s = String(value).trim();
+	return s === "" ? undefined : s;
+}
+
+function numberField(body: Body, snake: string): number | undefined {
+	const raw = field(body, snake);
+	if (raw === undefined) return undefined;
+	const n = Number(raw.replace(",", "."));
+	if (!Number.isFinite(n)) throw new Error(`${snake} doit être un nombre.`);
+	return n;
+}
+
+function tagsField(body: Body): string[] | undefined {
+	const raw = body.tags;
+	if (Array.isArray(raw))
+		return raw
+			.map(String)
+			.map((t) => t.trim())
+			.filter(Boolean);
+	if (typeof raw === "string" && raw.trim()) {
+		return raw
+			.split(",")
+			.map((t) => t.trim())
+			.filter(Boolean);
+	}
+	return undefined;
+}
+
+function errorMessage(err: unknown): string {
+	const msg = err instanceof Error ? err.message : String(err);
+	return /Uncaught Error: ([^\n]+)/.exec(msg)?.[1] ?? msg.split("\n")[0];
+}
+
+const API_DOC = {
+	authentication:
+		"En-tête Authorization: Bearer <clé>, ou X-API-Key: <clé>, ou ?api_key=<clé>",
+	endpoints: {
+		"GET /api/v1/me": "Vérifie la clé.",
+		"GET /api/v1/events": "Événements actifs et leurs liens de réservation.",
+		"GET /api/v1/leads?email=|phone=|id=": "Retrouve un lead.",
+		"POST /api/v1/leads":
+			"Crée ou complète un lead (email ou phone requis). Champs : first_name, last_name, email, phone, status, source, tags, note, closer_email, event_slug, amount, utm_source, utm_medium, utm_campaign, utm_term, utm_content.",
+		"POST /api/v1/leads/notes":
+			"Ajoute une note. Champs : id | email | phone, body.",
+		"POST /api/v1/leads/status":
+			"Change le statut. Champs : id | email | phone, status, amount (optionnel, en euros).",
+	},
+	statuses: [
+		"potentiel",
+		"qualifie",
+		"rdv_reserve",
+		"tenu",
+		"gagne",
+		"perdu",
+		"follow_up",
+	],
+};
+
+http.route({
+	pathPrefix: "/api/v1/",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const auth = await authenticate(ctx, request);
+		if (!auth) return json({ error: "Clé d'API absente ou invalide." }, 401);
+		const url = new URL(request.url);
+		const path = url.pathname.replace(/\/+$/, "");
+
+		try {
+			if (path === "/api/v1/me") {
+				return json({ ok: true, key: auth.name, documentation: API_DOC });
+			}
+			if (path === "/api/v1/events") {
+				return json({
+					events: await ctx.runQuery(
+						internal.automations.apiListEventsInternal,
+						{},
+					),
+				});
+			}
+			if (path === "/api/v1/leads") {
+				const ref = {
+					leadId: url.searchParams.get("id") ?? undefined,
+					email: url.searchParams.get("email") ?? undefined,
+					phone: url.searchParams.get("phone") ?? undefined,
+				};
+				if (!ref.leadId && !ref.email && !ref.phone) {
+					return json({ error: "Précise id, email ou phone." }, 400);
+				}
+				const lead = await ctx.runQuery(
+					internal.automations.apiFindLeadInternal,
+					ref,
+				);
+				return lead
+					? json({ lead })
+					: json({ error: "Lead introuvable." }, 404);
+			}
+			return json({ error: "Route inconnue.", documentation: API_DOC }, 404);
+		} catch (err) {
+			return json({ error: errorMessage(err) }, 400);
+		}
+	}),
+});
+
+http.route({
+	pathPrefix: "/api/v1/",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const auth = await authenticate(ctx, request);
+		if (!auth) return json({ error: "Clé d'API absente ou invalide." }, 401);
+		const path = new URL(request.url).pathname.replace(/\/+$/, "");
+
+		try {
+			const body = await readBody(request);
+			const ref = {
+				leadId: field(body, "id") ?? field(body, "lead_id"),
+				email: field(body, "email"),
+				phone: field(body, "phone"),
+			};
+
+			if (path === "/api/v1/leads") {
+				const res = await ctx.runMutation(
+					internal.automations.apiUpsertLeadInternal,
+					{
+						userId: auth.userId,
+						email: ref.email,
+						phone: ref.phone,
+						firstName: field(body, "first_name"),
+						lastName: field(body, "last_name"),
+						status: field(body, "status"),
+						source: field(body, "source"),
+						tags: tagsField(body),
+						note: field(body, "note"),
+						closerEmail: field(body, "closer_email"),
+						eventSlug: field(body, "event_slug"),
+						amount: numberField(body, "amount"),
+						utmSource: field(body, "utm_source"),
+						utmMedium: field(body, "utm_medium"),
+						utmCampaign: field(body, "utm_campaign"),
+						utmTerm: field(body, "utm_term"),
+						utmContent: field(body, "utm_content"),
+					},
+				);
+				return json({ ok: true, ...res }, res.created ? 201 : 200);
+			}
+
+			if (path === "/api/v1/leads/notes") {
+				const note = field(body, "body") ?? field(body, "note");
+				if (!note) return json({ error: "Champ body manquant." }, 400);
+				const res = await ctx.runMutation(
+					internal.automations.apiAddNoteInternal,
+					{ userId: auth.userId, ...ref, body: note },
+				);
+				return json({ ok: true, ...res }, 201);
+			}
+
+			if (path === "/api/v1/leads/status") {
+				const status = field(body, "status");
+				if (!status) return json({ error: "Champ status manquant." }, 400);
+				const res = await ctx.runMutation(
+					internal.automations.apiSetStatusInternal,
+					{ ...ref, status, amount: numberField(body, "amount") },
+				);
+				return json({ ok: true, ...res });
+			}
+
+			return json({ error: "Route inconnue.", documentation: API_DOC }, 404);
+		} catch (err) {
+			const message = errorMessage(err);
+			return json({ error: message }, /introuvable/i.test(message) ? 404 : 400);
+		}
+	}),
+});
+
 export default http;

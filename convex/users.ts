@@ -2,7 +2,7 @@
 // Ne pas modifier auth.ts / schema.ts.
 
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, type QueryCtx, query } from "./_generated/server";
 import { requireAdmin, requireAuth } from "./lib/auth";
 import {
 	defaultFrom,
@@ -16,14 +16,23 @@ import {
 // Adresses d'envoi
 // ============================================================
 
+async function effectiveDefaultFrom(ctx: QueryCtx): Promise<string> {
+	const settings = await ctx.db
+		.query("integrationSettings")
+		.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
+		.first();
+	return defaultFrom(settings);
+}
+
 // Domaine autorisé et adresse par défaut, pour la page Équipe.
 export const getSenderSettings = query({
 	args: {},
 	handler: async (ctx) => {
 		await requireAdmin(ctx);
+		const from = await effectiveDefaultFrom(ctx);
 		return {
-			domain: senderDomain(),
-			defaultAddress: extractAddress(defaultFrom()),
+			domain: senderDomain(from),
+			defaultAddress: extractAddress(from),
 		};
 	},
 });
@@ -39,8 +48,9 @@ export const setSenderEmail = mutation({
 		const value = senderEmail?.trim().toLowerCase() || null;
 		if (value !== null) {
 			if (!isValidEmail(value)) throw new Error("Adresse email invalide");
-			if (!isOnSenderDomain(value)) {
-				const domain = senderDomain();
+			const from = await effectiveDefaultFrom(ctx);
+			if (!isOnSenderDomain(value, from)) {
+				const domain = senderDomain(from);
 				throw new Error(
 					domain
 						? `L'adresse doit se terminer par @${domain} : c'est le seul domaine vérifié pour l'envoi.`

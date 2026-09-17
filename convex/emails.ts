@@ -34,19 +34,7 @@ import {
 	sequenceStepTemplate,
 } from "./lib/emailTemplates";
 import { buildIcs, googleCalendarUrl, outlookCalendarUrl } from "./lib/ics";
-import { defaultFrom, type Sender, senderFor } from "./lib/sender";
-
-// ============================================================
-// Config
-// ============================================================
-
-function getResendKey(): string {
-	const key = process.env.RESEND_API_KEY;
-	if (!key) throw new Error("Missing RESEND_API_KEY");
-	return key;
-}
-
-const FROM_EMAIL = defaultFrom();
+import { extractAddress, extractName, senderFor } from "./lib/sender";
 
 // Base des liens envoyés aux prospects (annulation, reprogrammation) et à
 // l'équipe (accès au CRM). APP_BASE_URL est la variable posée à l'installation
@@ -60,7 +48,7 @@ const SITE_URL = (
 ).replace(/\/$/, "");
 
 // ============================================================
-// Resend wrapper — never throws
+// Envoi — Resend ou Brevo, never throws
 // ============================================================
 
 interface ResendResult {
@@ -69,70 +57,142 @@ interface ResendResult {
 	error?: string;
 }
 
-// Envoi depuis l'adresse d'un membre quand il en a une. Si Resend la refuse
-// (domaine retiré, adresse mal saisie), l'email repart depuis l'adresse par
-// défaut : le prospect le reçoit quand même, et les réponses vont toujours au
-// membre.
-async function resendSend(payload: {
+interface SendPayload {
 	to: string;
 	subject: string;
 	html: string;
 	// Pièces jointes (le .ics du rendez-vous) — contenu encodé en base64.
 	attachments?: Array<{ filename: string; content: string }>;
-	sender?: Sender | null;
-}): Promise<ResendResult> {
-	if (payload.sender) {
-		const first = await resendPost(payload, payload.sender.from);
-		if (first.ok) return first;
-		console.warn(
-			`[emails] envoi refusé depuis ${payload.sender.replyTo}, repli sur l'adresse par défaut`,
-		);
-	}
-	return resendPost(payload, FROM_EMAIL);
+	// Membre dont l'adresse d'envoi est utilisée (hôte du RDV, closer du lead).
+	senderUser?: { name?: string; email?: string; senderEmail?: string } | null;
 }
 
-async function resendPost(
-	payload: Parameters<typeof resendSend>[0],
-	from: string,
-): Promise<ResendResult> {
-	try {
-		const res = await fetch("https://api.resend.com/emails", {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${getResendKey()}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				from,
-				to: [payload.to],
-				subject: payload.subject,
-				html: payload.html,
-				...(payload.sender ? { reply_to: payload.sender.replyTo } : {}),
-				...(payload.attachments?.length
-					? { attachments: payload.attachments }
-					: {}),
-			}),
-		});
+interface EmailConfig {
+	provider: "resend" | "brevo";
+	apiKey: string | null;
+	from: string;
+}
 
-		const body = (await res.json()) as {
+// Le fournisseur est celui choisi dans Intégrations (compte du client) ; à
+// défaut, le compte Resend de l'instance. Envoi depuis l'adresse d'un membre
+// quand il en a une : si le fournisseur la refuse, l'email repart depuis
+// l'adresse par défaut — le prospect le reçoit quand même, et les réponses
+// vont toujours au membre.
+async function resendSend(
+	ctx: ActionCtx,
+	payload: SendPayload,
+): Promise<ResendResult> {
+	const config: EmailConfig = await ctx.runQuery(
+		internal.emailSettings.getEmailConfigInternal,
+		{},
+	);
+	if (!config.apiKey) {
+		return { ok: false, error: "Aucun fournisseur d'email configuré" };
+	}
+	const sender = senderFor(payload.senderUser ?? null, config.from);
+	const replyTo = sender?.replyTo;
+	if (sender) {
+		const first = await providerPost(config, payload, sender.from, replyTo);
+		if (first.ok) return first;
+		console.warn(
+			`[emails] envoi refusé depuis ${sender.replyTo}, repli sur l'adresse par défaut`,
+		);
+	}
+	return providerPost(config, payload, config.from, replyTo);
+}
+
+async function providerPost(
+	config: EmailConfig,
+	payload: SendPayload,
+	from: string,
+	replyTo: string | undefined,
+): Promise<ResendResult> {
+	const provider = config.provider === "brevo" ? "Brevo" : "Resend";
+	try {
+		const res =
+			config.provider === "brevo"
+				? await fetch("https://api.brevo.com/v3/smtp/email", {
+						method: "POST",
+						headers: {
+							"api-key": config.apiKey ?? "",
+							"Content-Type": "application/json",
+							Accept: "application/json",
+						},
+						body: JSON.stringify({
+							sender: {
+								email: extractAddress(from),
+								...(extractName(from) && { name: extractName(from) }),
+							},
+							to: [{ email: payload.to }],
+							subject: payload.subject,
+							htmlContent: payload.html,
+							...(replyTo && { replyTo: { email: replyTo } }),
+							...(payload.attachments?.length && {
+								attachment: payload.attachments.map((a) => ({
+									name: a.filename,
+									content: a.content,
+								})),
+							}),
+						}),
+					})
+				: await fetch("https://api.resend.com/emails", {
+						method: "POST",
+						headers: {
+							Authorization: `Bearer ${config.apiKey}`,
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							from,
+							to: [payload.to],
+							subject: payload.subject,
+							html: payload.html,
+							...(replyTo && { reply_to: replyTo }),
+							...(payload.attachments?.length && {
+								attachments: payload.attachments,
+							}),
+						}),
+					});
+
+		const body = (await res.json().catch(() => ({}))) as {
 			id?: string;
+			messageId?: string;
 			message?: string;
 			name?: string;
+			code?: string;
 		};
 
 		if (!res.ok) {
-			const errMsg = body.message ?? body.name ?? `HTTP ${res.status}`;
-			console.error(`[emails] Resend error: ${errMsg} | to=${payload.to}`);
-			return { ok: false, error: errMsg.slice(0, 512) };
+			const errMsg =
+				body.message ?? body.name ?? body.code ?? `HTTP ${res.status}`;
+			console.error(`[emails] ${provider} error: ${errMsg} | to=${payload.to}`);
+			return { ok: false, error: `${provider} : ${errMsg}`.slice(0, 512) };
 		}
 
-		return { ok: true, messageId: body.id };
+		return { ok: true, messageId: body.id ?? body.messageId };
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
-		console.error(`[emails] Resend fetch exception: ${msg} | to=${payload.to}`);
+		console.error(
+			`[emails] ${provider} fetch exception: ${msg} | to=${payload.to}`,
+		);
 		return { ok: false, error: msg.slice(0, 512) };
 	}
 }
+
+// Email de test, envoyé depuis Intégrations pour valider le fournisseur.
+export const sendTestEmail = internalAction({
+	args: { to: v.string() },
+	handler: async (ctx, { to }): Promise<ResendResult> => {
+		return await resendSend(ctx, {
+			to,
+			subject: `Test d'envoi — ${BRAND_NAME}`,
+			html: `<div style="font-family:Arial,sans-serif;font-size:15px;color:#1E293B;line-height:1.6">
+<p>Bonjour,</p>
+<p>Cet email confirme que l'envoi des emails de <strong>${escapeHtml(BRAND_NAME)}</strong> fonctionne avec le fournisseur configuré.</p>
+<p>Confirmations, rappels et relances partiront de la même façon.</p>
+</div>`,
+		});
+	},
+});
 
 // ============================================================
 // Pièce jointe .ics
@@ -270,12 +330,12 @@ export const sendBookingConfirmation = internalAction({
 			outlookCalUrl: outlookCalendarUrl(calLink),
 		});
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
 			subject: `Confirmation — ${event.name} le ${dateStr}`,
 			html,
 			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
-			sender: senderFor(host),
+			senderUser: host,
 		});
 
 		await logEmail(ctx, {
@@ -352,7 +412,7 @@ export const sendHostNotification = internalAction({
 			dashboardUrl: `${SITE_URL}/crm`,
 		});
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to: host.email,
 			subject: `Nouveau RDV — ${booking.prospectName} (${event.name})`,
 			html,
@@ -414,11 +474,11 @@ export const sendReminder = internalAction({
 			cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
 		});
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
 			subject: `Rappel — votre rendez-vous dans 2h (${event.name})`,
 			html,
-			sender: senderFor(host),
+			senderUser: host,
 		});
 
 		await logEmail(ctx, {
@@ -467,11 +527,11 @@ export const sendCancellation = internalAction({
 			rescheduleUrl,
 		});
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
 			subject: `Annulation — ${event.name}`,
 			html,
-			sender: senderFor(host),
+			senderUser: host,
 		});
 
 		await logEmail(ctx, {
@@ -524,14 +584,14 @@ export const sendReschedule = internalAction({
 			cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
 		});
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
 			subject: `Replanification — ${event.name} le ${newDateStr}`,
 			html,
 			// Même UID que la confirmation : l'agenda du prospect déplace l'entrée
 			// existante au lieu d'en créer une seconde.
 			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
-			sender: senderFor(host),
+			senderUser: host,
 		});
 
 		await logEmail(ctx, {
@@ -599,7 +659,7 @@ export const sendInvitation = internalAction({
 		};
 		const expiresAt = Date.now() + 14 * 24 * 60 * 60 * 1000;
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to,
 			subject: `Invitation à rejoindre ${BRAND_NAME}`,
 			html: invitationTemplate({
@@ -656,7 +716,7 @@ export const sendAbandonedLead = internalAction({
 		// Un envoi par destinataire : Resend mettrait sinon les adresses de
 		// l'équipe en clair dans le même en-tête To.
 		for (const to of ctxData.recipients) {
-			const result = await resendSend({
+			const result = await resendSend(ctx, {
 				to,
 				subject: `Formulaire abandonné — ${prospectName}`,
 				html,
@@ -706,14 +766,14 @@ export const sendSequenceStep = internalAction({
 				})
 			: null;
 
-		const result = await resendSend({
+		const result = await resendSend(ctx, {
 			to: lead.email,
 			subject: fill(subject),
 			html: sequenceStepTemplate({
 				bodyText: fill(body),
 				unsubscribeUrl: `${SITE_URL}/unsubscribe/${token}`,
 			}),
-			sender: senderFor(closer),
+			senderUser: closer,
 		});
 
 		await logEmail(ctx, {

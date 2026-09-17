@@ -572,9 +572,59 @@ export default defineSchema({
 		calendlyUserUri: v.optional(v.string()),
 		calendlyOrganizationUri: v.optional(v.string()),
 		calendlyAccountLabel: v.optional(v.string()), // "Nom <email>", affichage
+		// Envoi des emails : le compte du client plutôt que celui de l'instance.
+		// Absent = envoi par défaut (RESEND_API_KEY / RESEND_FROM_EMAIL).
+		emailProvider: v.optional(v.union(v.literal("resend"), v.literal("brevo"))),
+		emailApiKey: v.optional(v.string()),
+		emailFromAddress: v.optional(v.string()),
+		emailFromName: v.optional(v.string()),
+		// systeme.io — synchronisation des contacts et des tags.
+		systemeioApiKey: v.optional(v.string()),
+		systemeioTagPrefix: v.optional(v.string()),
 		updatedAt: v.number(),
 		updatedByUserId: v.optional(v.id("users")),
 	}).index("by_singleton", ["singleton"]),
+
+	// Automatisations (Make, Zapier…) — adresses appelées à chaque événement.
+	webhookEndpoints: defineTable({
+		url: v.string(),
+		description: v.optional(v.string()),
+		events: v.array(v.string()), // types d'événement, ou "*"
+		secret: v.string(), // signature HMAC des envois
+		active: v.boolean(),
+		createdByUserId: v.id("users"),
+		createdAt: v.number(),
+		lastDeliveryAt: v.optional(v.number()),
+		lastStatus: v.optional(v.union(v.literal("success"), v.literal("failed"))),
+		lastHttpStatus: v.optional(v.number()),
+		disabledReason: v.optional(v.string()),
+	}),
+
+	webhookDeliveries: defineTable({
+		endpointId: v.id("webhookEndpoints"),
+		eventId: v.string(),
+		eventType: v.string(),
+		status: v.union(
+			v.literal("success"),
+			v.literal("failed"),
+			v.literal("retrying"),
+		),
+		attempt: v.number(),
+		httpStatus: v.optional(v.number()),
+		error: v.optional(v.string()),
+		createdAt: v.number(),
+	}).index("by_endpoint_createdAt", ["endpointId", "createdAt"]),
+
+	// Clés d'accès à l'API entrante. Seule l'empreinte SHA-256 est stockée.
+	apiKeys: defineTable({
+		name: v.string(),
+		keyHash: v.string(),
+		prefix: v.string(), // début de la clé, pour la reconnaître
+		createdByUserId: v.id("users"),
+		createdAt: v.number(),
+		lastUsedAt: v.optional(v.number()),
+		revokedAt: v.optional(v.number()),
+	}).index("by_keyHash", ["keyHash"]),
 
 	// Import Calendly : un rendez-vous (invité) déjà importé n'est jamais
 	// réimporté, quel que soit le nombre de lancements.

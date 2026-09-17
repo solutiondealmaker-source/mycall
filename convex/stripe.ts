@@ -9,6 +9,7 @@
 
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import {
 	action,
 	internalAction,
@@ -18,6 +19,7 @@ import {
 	query,
 } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
+import { emitEvent } from "./lib/outbound";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
@@ -250,6 +252,21 @@ export const applyPaymentSucceededInternal = internalMutation({
 			}
 			// Sinon, un closer a saisi ce montant à la main : il fait foi, on n'y
 			// touche pas. Le total encaissé reste visible sur la fiche lead.
+		}
+
+		const typedLeadId = leadId as Id<"leads">;
+		await emitEvent(ctx, "payment.succeeded", {
+			leadId: typedLeadId,
+			source: "stripe",
+			data: { amount: amountCents / 100, payment_intent_id: paymentIntentId },
+		});
+		const previousStatus = (lead as { status?: string }).status;
+		if (previousStatus !== "gagne") {
+			await emitEvent(ctx, "lead.status_changed", {
+				leadId: typedLeadId,
+				source: "stripe",
+				data: { previous_status: previousStatus ?? null, status: "gagne" },
+			});
 		}
 		return { ok: true, reason: "applied" };
 	},

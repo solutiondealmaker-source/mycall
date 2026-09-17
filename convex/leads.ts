@@ -20,6 +20,7 @@ import {
 	requireAuth,
 } from "./lib/auth";
 import { normalizeEmail, normalizePhone } from "./lib/leadMatch";
+import { emitEvent } from "./lib/outbound";
 
 // ============================================================
 // ROLE SCOPING — cloisonnement CRM
@@ -254,6 +255,12 @@ export const update = mutation({
 			...cleanPatch,
 			lastInteractionAt: Date.now(),
 		});
+		if (patch.status && patch.status !== lead.status) {
+			await emitEvent(ctx, "lead.status_changed", {
+				leadId: id,
+				data: { previous_status: lead.status, status: patch.status },
+			});
+		}
 		return id;
 	},
 });
@@ -758,7 +765,7 @@ export async function _upsertLeadForBooking(
 		return lead._id;
 	}
 
-	return await ctx.db.insert("leads", {
+	const leadId = await ctx.db.insert("leads", {
 		firstName: args.firstName,
 		lastName: args.lastName,
 		phone: args.phone,
@@ -776,6 +783,8 @@ export async function _upsertLeadForBooking(
 		tagSource: args.eventTagSource ?? args.eventSlug,
 		lastInteractionAt: now,
 	});
+	await emitEvent(ctx, "lead.created", { leadId });
+	return leadId;
 }
 
 // Plain async function version of findLeadByAnyKey (used within the same mutation).
@@ -829,69 +838,45 @@ export async function _applyAutoPhase(
 	const active = bookings.filter(
 		(b) => b.status !== "cancelled" && b.status !== "rescheduled",
 	);
-
-	// Check for any won booking
-	if (active.some((b) => b.issue === "gagne")) {
-		await ctx.db.patch(leadId, {
-			status: "gagne",
-			phase: "gagne",
-			convertedAt: now,
-			lastInteractionAt: now,
-		});
-		return;
-	}
-
-	// Check for follow_up
-	if (active.some((b) => b.issue === "follow_up")) {
-		await ctx.db.patch(leadId, {
-			status: "follow_up",
-			phase: "follow_up",
-			lastInteractionAt: now,
-		});
-		return;
-	}
-
-	// All held bookings are perdu
 	const heldBookings = active.filter((b) => b.tenue === "tenu");
-	if (
+
+	let next: Doc<"leads">["status"];
+	if (active.some((b) => b.issue === "gagne")) {
+		// Any won booking
+		next = "gagne";
+	} else if (active.some((b) => b.issue === "follow_up")) {
+		next = "follow_up";
+	} else if (
+		// All held bookings are perdu
 		heldBookings.length > 0 &&
 		heldBookings.every((b) => b.issue === "perdu")
 	) {
-		await ctx.db.patch(leadId, {
-			status: "perdu",
-			phase: "perdu",
-			lastInteractionAt: now,
-		});
-		return;
+		next = "perdu";
+	} else if (
+		// Call was held but issue still pending
+		active.some((b) => b.tenue === "tenu" && b.issue === "en_attente")
+	) {
+		next = "tenu";
+	} else if (
+		// Future confirmed booking
+		active.some((b) => b.status === "confirmed" && b.startTime > now)
+	) {
+		next = "rdv_reserve";
+	} else {
+		next = "potentiel";
 	}
 
-	// Call was held but issue still pending
-	if (active.some((b) => b.tenue === "tenu" && b.issue === "en_attente")) {
-		await ctx.db.patch(leadId, {
-			status: "tenu",
-			phase: "tenu",
-			lastInteractionAt: now,
-		});
-		return;
-	}
-
-	// Future confirmed booking
-	const hasFutureBooking = active.some(
-		(b) => b.status === "confirmed" && b.startTime > now,
-	);
-	if (hasFutureBooking) {
-		await ctx.db.patch(leadId, {
-			status: "rdv_reserve",
-			phase: "rdv_reserve",
-			lastInteractionAt: now,
-		});
-		return;
-	}
-
-	// Fallback: potentiel
+	const previous = (await ctx.db.get(leadId))?.status;
 	await ctx.db.patch(leadId, {
-		status: "potentiel",
-		phase: "potentiel",
+		status: next,
+		phase: next,
+		...(next === "gagne" && { convertedAt: now }),
 		lastInteractionAt: now,
 	});
+	if (previous && previous !== next) {
+		await emitEvent(ctx, "lead.status_changed", {
+			leadId,
+			data: { previous_status: previous, status: next },
+		});
+	}
 }

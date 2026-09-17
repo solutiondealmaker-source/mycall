@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import { _findLeadByAnyKey } from "./leads";
 import { normalizeEmail, normalizePhone } from "./lib/leadMatch";
+import { emitEvent } from "./lib/outbound";
 
 // 10 minutes after first capture â€” check if the prospect abandoned the form.
 const ABANDONED_LEAD_DELAY_MS = 10 * 60 * 1000;
@@ -194,6 +195,7 @@ export const capturePartialLead = mutation({
 				promotedLeadId: leadId,
 				lastUpdatedAt: now,
 			});
+			await emitEvent(ctx, "lead.created", { leadId });
 		}
 
 		return partialLeadId;
@@ -227,8 +229,8 @@ export const checkPartialLeadAbandoned = internalMutation({
 			partialLeadId,
 		});
 
-		// Le prospect entre aussi dans les séquences de nurturing déclenchées par
-		// un formulaire abandonné, s'il en existe une active.
+		// Le prospect entre aussi dans les sï¿½quences de nurturing dï¿½clenchï¿½es par
+		// un formulaire abandonnï¿½, s'il en existe une active.
 		if (pl.promotedLeadId) {
 			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
 				trigger: "abandoned_form" as const,

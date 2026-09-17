@@ -29,6 +29,7 @@ import {
 import { _applyAutoPhase, _upsertLeadForBooking } from "./leads";
 import { canReadAll, getAuthenticatedUser, isAdminUser } from "./lib/auth";
 import { isDisqualified } from "./lib/disqualification";
+import { emitEvent } from "./lib/outbound";
 import {
 	computeSlotsForDay,
 	type HostCtxForCompute,
@@ -1581,7 +1582,7 @@ export const setOutcome = mutation({
 			...statusPatch,
 		});
 
-		// Un no-show déclenche la séquence de reprogrammation, s'il en existe une.
+		// Un no-show dï¿½clenche la sï¿½quence de reprogrammation, s'il en existe une.
 		if (args.tenue === "no_show") {
 			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
 				trigger: "no_show" as const,
@@ -1628,6 +1629,19 @@ export const setOutcome = mutation({
 
 		// Re-derive lead phase
 		await _applyAutoPhase(ctx, booking.leadId);
+
+		await emitEvent(ctx, "booking.outcome_updated", {
+			bookingId: args.bookingId,
+			leadId: booking.leadId,
+			data: {
+				attendance: args.tenue,
+				outcome: args.issue ?? "en_attente",
+				amount:
+					args.issue === "gagne" && args.issueAmountCents !== undefined
+						? args.issueAmountCents / 100
+						: null,
+			},
+		});
 
 		await logBookingActivity(ctx, {
 			bookingId: args.bookingId,

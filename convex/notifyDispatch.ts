@@ -13,6 +13,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
+import { emitEvent } from "./lib/outbound";
 
 // ============================================================
 // dispatchBookingCreated — schedule confirmation + host notification
@@ -34,6 +35,10 @@ export const dispatchBookingCreated = internalMutation({
 		// date. C'est le levier principal contre les no-show : un prospect qui a
 		// reçu deux messages utiles entre-temps se souvient du rendez-vous.
 		const booking = await ctx.db.get(bookingId);
+		await emitEvent(ctx, "booking.created", {
+			bookingId,
+			leadId: booking?.leadId,
+		});
 		if (booking?.leadId) {
 			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
 				trigger: "before_booking" as const,
@@ -55,6 +60,11 @@ export const dispatchBookingCancelled = internalMutation({
 		await ctx.scheduler.runAfter(0, internal.emails.sendCancellation, {
 			bookingId,
 		});
+		const booking = await ctx.db.get(bookingId);
+		await emitEvent(ctx, "booking.cancelled", {
+			bookingId,
+			leadId: booking?.leadId,
+		});
 	},
 });
 
@@ -73,6 +83,12 @@ export const dispatchBookingRescheduled = internalMutation({
 			bookingId,
 			previousStartTime,
 			previousTimezone,
+		});
+		const booking = await ctx.db.get(bookingId);
+		await emitEvent(ctx, "booking.rescheduled", {
+			bookingId,
+			leadId: booking?.leadId,
+			data: { previous_start_time: new Date(previousStartTime).toISOString() },
 		});
 	},
 });
