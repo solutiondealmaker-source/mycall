@@ -14,6 +14,7 @@ import {
 	type QueryCtx,
 	query,
 } from "./_generated/server";
+import { loadBrand } from "./emailBranding";
 import { getAuthenticatedUser, requireAdmin } from "./lib/auth";
 import { renderProspectEmail, sampleEmailData } from "./lib/prospectEmail";
 
@@ -143,6 +144,7 @@ export const previewTemplate = query({
 			kind,
 			sampleEmailData(SITE_URL),
 			useDefault ? null : { subject, heading, body },
+			await loadBrand(ctx),
 		);
 	},
 });
@@ -173,6 +175,7 @@ export const sendTestTemplate = action({
 			args.useDefault
 				? null
 				: { subject: args.subject, heading: args.heading, body: args.body },
+			await ctx.runQuery(internal.emailBranding.getBrandInternal, {}),
 		);
 		const res = await ctx.runAction(internal.emails.sendRawEmail, {
 			to,

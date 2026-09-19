@@ -3,9 +3,10 @@
 // Design : Inter / stack système, largeur max 600px, layout en tables (seul
 // format fiable sur Outlook & consorts).
 //
-// Marque : lue dans l'environnement Convex, jamais écrite en dur. Chaque
-// instance (un business = une instance) porte ainsi sa propre identité sans
-// dupliquer une ligne de template.
+// Marque : lue dans l'environnement Convex, jamais écrite en dur, et
+// remplaçable par le client (logo, couleur, signature) — voir withBrand().
+// Chaque instance porte ainsi sa propre identité sans dupliquer une ligne de
+// template.
 //
 // Sécurité : toute chaîne venant de l'utilisateur DOIT passer par escapeHtml()
 // avant interpolation, sous peine d'injection HTML dans les emails hôte.
@@ -53,8 +54,79 @@ function lighten(hex: string, ratio: number): string {
 		.toUpperCase()}`;
 }
 
+// ============================================================
+// Marque appliquée au rendu
+// ============================================================
+//
+// Les valeurs d'environnement ci-dessus sont le défaut. Le client peut les
+// remplacer depuis Paramètres → Emails (logo, couleur, signature) : chaque
+// rendu est alors exécuté dans withBrand(), qui pose la marque le temps d'un
+// appel synchrone puis la rétablit — aucun rendu ne peut en voir un autre.
+
+export interface EmailBrand {
+	name: string;
+	color: string;
+	tagline: string;
+	logoUrl: string | null;
+}
+
+const ENV_BRAND: EmailBrand = {
+	name: BRAND_NAME,
+	color: BRAND_COLOR,
+	tagline: BRAND_TAGLINE,
+	logoUrl: null,
+};
+
+let brand: EmailBrand = ENV_BRAND;
+
+// Couleur posée à l'installation de l'instance — celle qui s'applique tant que
+// le client n'en choisit pas une autre.
+export const DEFAULT_BRAND_COLOR = BRAND_COLOR;
+
+export function withBrand<T>(
+	overrides: Partial<EmailBrand> | null | undefined,
+	render: () => T,
+): T {
+	const previous = brand;
+	brand = {
+		name: overrides?.name?.trim() || ENV_BRAND.name,
+		color: normalizeHex(overrides?.color ?? undefined) ?? ENV_BRAND.color,
+		tagline: overrides?.tagline ?? ENV_BRAND.tagline,
+		logoUrl: overrides?.logoUrl ?? null,
+	};
+	try {
+		return render();
+	} finally {
+		brand = previous;
+	}
+}
+
+// Contraste avec le texte blanc des boutons (WCAG). En dessous de 3, le
+// libellé d'un bouton devient illisible.
+export function contrastWithWhite(hex: string): number | null {
+	const norm = normalizeHex(hex);
+	if (!norm) return null;
+	const channel = (c: number) => {
+		const s = c / 255;
+		return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+	};
+	const [r, g, b] = hexToRgb(norm);
+	const lum = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+	return 1.05 / (lum + 0.05);
+}
+
+export { normalizeHex };
+
+// En-tête : le logo s'il y en a un, sinon le nom en toutes lettres.
+function brandHeader(): string {
+	if (brand.logoUrl) {
+		return `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.name)}" style="display:block;margin:0 auto;max-height:56px;max-width:220px;height:auto;width:auto;border:0">`;
+	}
+	return `<span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:-0.04em;color:${brand.color}">${escapeHtml(brand.name)}</span>`;
+}
+
 function brandShadow(alpha: number): string {
-	const [r, g, b] = hexToRgb(BRAND_COLOR);
+	const [r, g, b] = hexToRgb(brand.color);
 	return `rgba(${r},${g},${b},${alpha})`;
 }
 
@@ -92,7 +164,7 @@ function baseLayout(content: string): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>${escapeHtml(BRAND_NAME)}</title>
+  <title>${escapeHtml(brand.name)}</title>
 </head>
 <body style="margin:0;padding:0;background:#F4F6F8;font-family:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;min-height:100vh">
@@ -103,9 +175,7 @@ function baseLayout(content: string): string {
           <!-- Logo header -->
           <tr>
             <td align="center" style="padding:0 0 28px">
-              <span style="display:inline-block;font-size:22px;font-weight:800;letter-spacing:-0.04em;color:${BRAND_COLOR}">
-                ${escapeHtml(BRAND_NAME)}
-              </span>
+              ${brandHeader()}
             </td>
           </tr>
 
@@ -113,7 +183,7 @@ function baseLayout(content: string): string {
           <tr>
             <td style="background:#FFFFFF;border-radius:20px;border:1px solid #E2E8F0;box-shadow:0 4px 24px ${brandShadow(0.08)},0 1px 4px ${brandShadow(0.06)};overflow:hidden">
               <!-- Bandeau de marque -->
-              <div style="height:4px;background:linear-gradient(90deg,${BRAND_COLOR} 0%,${lighten(BRAND_COLOR, 0.25)} 50%,${lighten(BRAND_COLOR, 0.6)} 100%)"></div>
+              <div style="height:4px;background:linear-gradient(90deg,${brand.color} 0%,${lighten(brand.color, 0.25)} 50%,${lighten(brand.color, 0.6)} 100%)"></div>
               <!-- Body -->
               <div style="padding:40px 40px 36px">
                 ${content}
@@ -124,8 +194,8 @@ function baseLayout(content: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding:28px 0 0">
-              <p style="margin:0 0 4px;font-size:11px;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase">${escapeHtml(BRAND_NAME)}</p>
-              ${BRAND_TAGLINE ? `<p style="margin:0;font-size:11px;color:#CBD5E1">${escapeHtml(BRAND_TAGLINE)}</p>` : ""}
+              <p style="margin:0 0 4px;font-size:11px;color:#94A3B8;letter-spacing:0.12em;text-transform:uppercase">${escapeHtml(brand.name)}</p>
+              ${brand.tagline ? `<p style="margin:0;font-size:11px;color:#CBD5E1">${escapeHtml(brand.tagline)}</p>` : ""}
             </td>
           </tr>
 
@@ -143,7 +213,7 @@ function ctaButton(label: string, url: string): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 8px">
   <tr>
     <td align="center">
-      <a href="${url}" style="display:inline-block;background:${BRAND_COLOR};color:#FFFFFF;padding:13px 32px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.01em;box-shadow:0 4px 14px ${brandShadow(0.35)}">${label}</a>
+      <a href="${url}" style="display:inline-block;background:${brand.color};color:#FFFFFF;padding:13px 32px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.01em;box-shadow:0 4px 14px ${brandShadow(0.35)}">${label}</a>
     </td>
   </tr>
 </table>`;
@@ -151,7 +221,7 @@ function ctaButton(label: string, url: string): string {
 
 // Lien secondaire / discret
 function secondaryLink(label: string, url: string): string {
-	return `<a href="${url}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:13px;font-weight:500">${label}</a>`;
+	return `<a href="${url}" style="color:${brand.color};text-decoration:underline;font-size:13px;font-weight:500">${label}</a>`;
 }
 
 // Texte saisi dans l'éditeur → HTML. Le HTML est échappé (une apostrophe ou un
@@ -164,7 +234,7 @@ export function textToHtml(text: string): string {
 			const withLinks = p.replace(
 				/https?:\/\/[^\s<]+[^\s<.,;:!?)]/g,
 				(url) =>
-					`<a href="${url}" style="color:${BRAND_COLOR};word-break:break-all">${url}</a>`,
+					`<a href="${url}" style="color:${brand.color};word-break:break-all">${url}</a>`,
 			);
 			return `<p style="margin:0 0 16px;font-size:15px;color:#334155;line-height:1.7">${withLinks.replace(/\n/g, "<br>")}</p>`;
 		})
@@ -261,7 +331,7 @@ export function bookingConfirmationTemplate(
 	const meetSection = meetUrl
 		? `<p style="margin:16px 0 0;font-size:14px;color:#64748B;line-height:1.6">
         <strong style="color:#1E293B">Lien de réunion&nbsp;:</strong><br>
-        <a href="${meetUrl}" style="color:${BRAND_COLOR};word-break:break-all">${meetUrl}</a>
+        <a href="${meetUrl}" style="color:${brand.color};word-break:break-all">${meetUrl}</a>
       </p>`
 		: `<p style="margin:16px 0 0;font-size:13px;color:#94A3B8;line-height:1.6">Le lien de réunion vous sera transmis avant le rendez-vous.</p>`;
 
@@ -324,7 +394,7 @@ export function hostNotificationTemplate(args: HostNotificationArgs): string {
 	const meetSection = meetUrl
 		? `<p style="margin:12px 0 0;font-size:13px;color:#64748B">
         <strong style="color:#1E293B">Meet&nbsp;:</strong>
-        <a href="${meetUrl}" style="color:${BRAND_COLOR};margin-left:6px">${meetUrl}</a>
+        <a href="${meetUrl}" style="color:${brand.color};margin-left:6px">${meetUrl}</a>
       </p>`
 		: "";
 
@@ -363,7 +433,7 @@ ${infoBlock([
 
 ${answersSection}
 
-${ctaButton(`Ouvrir dans ${BRAND_NAME}`, dashboardUrl)}`;
+${ctaButton(`Ouvrir dans ${brand.name}`, dashboardUrl)}`;
 
 	return baseLayout(content);
 }
@@ -500,7 +570,7 @@ export function rescheduleTemplate(args: RescheduleArgs): string {
 	const meetSection = meetUrl
 		? `<p style="margin:12px 0 0;font-size:13px;color:#64748B">
         <strong style="color:#1E293B">Meet&nbsp;:</strong>
-        <a href="${meetUrl}" style="color:${BRAND_COLOR};margin-left:6px">${meetUrl}</a>
+        <a href="${meetUrl}" style="color:${brand.color};margin-left:6px">${meetUrl}</a>
       </p>`
 		: "";
 
@@ -563,8 +633,8 @@ export function invitationTemplate(args: InvitationArgs): string {
 		: "Vous êtes invité·e à rejoindre";
 
 	const content = `
-<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Invitation à rejoindre ${escapeHtml(BRAND_NAME)}</h1>
-<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">${invitedBy} l'espace de travail ${escapeHtml(BRAND_NAME)}.</p>
+<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Invitation à rejoindre ${escapeHtml(brand.name)}</h1>
+<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">${invitedBy} l'espace de travail ${escapeHtml(brand.name)}.</p>
 
 ${infoBlock([
 	`<p style="margin:0;font-size:12px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.06em">Votre rôle</p>`,

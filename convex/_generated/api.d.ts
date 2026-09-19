@@ -17,6 +17,7 @@ import type * as calendly from "../calendly.js";
 import type * as catalogues from "../catalogues.js";
 import type * as cron_jobs from "../cron_jobs.js";
 import type * as crons from "../crons.js";
+import type * as emailBranding from "../emailBranding.js";
 import type * as emailCustomization from "../emailCustomization.js";
 import type * as emailSettings from "../emailSettings.js";
 import type * as emails from "../emails.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   catalogues: typeof catalogues;
   cron_jobs: typeof cron_jobs;
   crons: typeof crons;
+  emailBranding: typeof emailBranding;
   emailCustomization: typeof emailCustomization;
   emailSettings: typeof emailSettings;
   emails: typeof emails;

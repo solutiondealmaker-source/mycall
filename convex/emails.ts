@@ -29,6 +29,7 @@ import {
 	hostNotificationTemplate,
 	invitationTemplate,
 	sequenceStepTemplate,
+	withBrand,
 } from "./lib/emailTemplates";
 import { buildIcs, googleCalendarUrl, outlookCalendarUrl } from "./lib/ics";
 import {
@@ -355,6 +356,10 @@ export const sendBookingConfirmation = internalAction({
 			internal.emailCustomization.resolveTemplateInternal,
 			{ kind: "confirmation", eventId: event._id },
 		);
+		const brand = await ctx.runQuery(
+			internal.emailBranding.getBrandInternal,
+			{},
+		);
 		const { subject, html } = renderProspectEmail(
 			"confirmation",
 			{
@@ -364,6 +369,7 @@ export const sendBookingConfirmation = internalAction({
 				outlookCalUrl: outlookCalendarUrl(calLink),
 			},
 			template,
+			brand,
 		);
 
 		const result = await resendSend(ctx, {
@@ -436,17 +442,23 @@ export const sendHostNotification = internalAction({
 
 		const dateStr = formatDateFR(booking.startTime, booking.timezone);
 
-		const html = hostNotificationTemplate({
-			hostName: host.name ?? null,
-			prospectName: booking.prospectName,
-			eventName: event.name,
-			dateTime: dateStr,
-			meetUrl: booking.googleMeetUrl,
-			prospectEmail: booking.prospectEmail,
-			prospectPhone: booking.prospectPhone,
-			customAnswers,
-			dashboardUrl: `${SITE_URL}/crm`,
-		});
+		const brand = await ctx.runQuery(
+			internal.emailBranding.getBrandInternal,
+			{},
+		);
+		const html = withBrand(brand, () =>
+			hostNotificationTemplate({
+				hostName: host.name ?? null,
+				prospectName: booking.prospectName,
+				eventName: event.name,
+				dateTime: dateStr,
+				meetUrl: booking.googleMeetUrl,
+				prospectEmail: booking.prospectEmail,
+				prospectPhone: booking.prospectPhone,
+				customAnswers,
+				dashboardUrl: `${SITE_URL}/crm`,
+			}),
+		);
 
 		const result = await resendSend(ctx, {
 			to: host.email,
@@ -505,10 +517,15 @@ export const sendReminder = internalAction({
 			internal.emailCustomization.resolveTemplateInternal,
 			{ kind: "reminder", eventId: event._id },
 		);
+		const brand = await ctx.runQuery(
+			internal.emailBranding.getBrandInternal,
+			{},
+		);
 		const { subject, html } = renderProspectEmail(
 			"reminder",
 			{ ...prospectData(booking, event, host), dateTime: dateStr },
 			template,
+			brand,
 		);
 
 		const result = await resendSend(ctx, {
@@ -560,6 +577,10 @@ export const sendCancellation = internalAction({
 			internal.emailCustomization.resolveTemplateInternal,
 			{ kind: "cancellation", eventId: event._id },
 		);
+		const brand = await ctx.runQuery(
+			internal.emailBranding.getBrandInternal,
+			{},
+		);
 		const { subject, html } = renderProspectEmail(
 			"cancellation",
 			{
@@ -569,6 +590,7 @@ export const sendCancellation = internalAction({
 				reason: booking.cancelReason,
 			},
 			template,
+			brand,
 		);
 
 		const result = await resendSend(ctx, {
@@ -622,6 +644,10 @@ export const sendReschedule = internalAction({
 			internal.emailCustomization.resolveTemplateInternal,
 			{ kind: "reschedule", eventId: event._id },
 		);
+		const brand = await ctx.runQuery(
+			internal.emailBranding.getBrandInternal,
+			{},
+		);
 		const { subject, html } = renderProspectEmail(
 			"reschedule",
 			{
@@ -630,6 +656,7 @@ export const sendReschedule = internalAction({
 				oldDateTime: oldDateStr,
 			},
 			template,
+			brand,
 		);
 
 		const result = await resendSend(ctx, {
@@ -710,14 +737,18 @@ export const sendInvitation = internalAction({
 		const result = await resendSend(ctx, {
 			to,
 			subject: `Invitation à rejoindre ${BRAND_NAME}`,
-			html: invitationTemplate({
-				inviterName,
-				roleLabel: copy.label,
-				roleDescription: copy.description,
-				eventNames: eventNames ?? [],
-				signupUrl: `${SITE_URL}/signup`,
-				expiresLabel: formatDateFR(expiresAt, "Europe/Paris"),
-			}),
+			html: withBrand(
+				await ctx.runQuery(internal.emailBranding.getBrandInternal, {}),
+				() =>
+					invitationTemplate({
+						inviterName,
+						roleLabel: copy.label,
+						roleDescription: copy.description,
+						eventNames: eventNames ?? [],
+						signupUrl: `${SITE_URL}/signup`,
+						expiresLabel: formatDateFR(expiresAt, "Europe/Paris"),
+					}),
+			),
 		});
 
 		await logEmail(ctx, {
@@ -752,14 +783,20 @@ export const sendAbandonedLead = internalAction({
 			ctxData.phone ||
 			"Prospect sans nom";
 
-		const html = abandonedLeadTemplate({
-			prospectName,
-			prospectPhone: ctxData.phone,
-			prospectEmail: ctxData.email,
-			eventName: ctxData.eventName,
-			capturedAtLabel: formatDateFR(ctxData.firstSeenAt, "Europe/Paris"),
-			crmUrl: `${SITE_URL}/crm`,
-		});
+		const brand = await ctx.runQuery(
+			internal.emailBranding.getBrandInternal,
+			{},
+		);
+		const html = withBrand(brand, () =>
+			abandonedLeadTemplate({
+				prospectName,
+				prospectPhone: ctxData.phone,
+				prospectEmail: ctxData.email,
+				eventName: ctxData.eventName,
+				capturedAtLabel: formatDateFR(ctxData.firstSeenAt, "Europe/Paris"),
+				crmUrl: `${SITE_URL}/crm`,
+			}),
+		);
 
 		// Un envoi par destinataire : Resend mettrait sinon les adresses de
 		// l'équipe en clair dans le même en-tête To.
@@ -838,10 +875,14 @@ export const sendSequenceStep = internalAction({
 		const result = await resendSend(ctx, {
 			to: lead.email,
 			subject: fill(subject),
-			html: sequenceStepTemplate({
-				bodyText: fill(body),
-				unsubscribeUrl: `${SITE_URL}/unsubscribe/${token}`,
-			}),
+			html: withBrand(
+				await ctx.runQuery(internal.emailBranding.getBrandInternal, {}),
+				() =>
+					sequenceStepTemplate({
+						bodyText: fill(body),
+						unsubscribeUrl: `${SITE_URL}/unsubscribe/${token}`,
+					}),
+			),
 			senderUser: closer,
 		});
 

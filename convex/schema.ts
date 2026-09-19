@@ -583,6 +583,11 @@ export default defineSchema({
 		systemeioTagPrefix: v.optional(v.string()),
 		// Fathom : marquer « tenu » le rendez-vous d'un appel enregistré.
 		fathomAutoHeld: v.optional(v.boolean()),
+		// Apparence des emails — remplace BRAND_COLOR / BRAND_TAGLINE et ajoute
+		// un logo.
+		emailLogoStorageId: v.optional(v.id("_storage")),
+		emailBrandColor: v.optional(v.string()),
+		emailTagline: v.optional(v.string()),
 		updatedAt: v.number(),
 		updatedByUserId: v.optional(v.id("users")),
 	}).index("by_singleton", ["singleton"]),

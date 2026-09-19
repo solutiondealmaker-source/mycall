@@ -6,6 +6,7 @@ import { Bell, CheckCircle, Mail, XCircle } from "lucide-react";
 import { api } from "@/../convex/_generated/api";
 import type { Doc } from "@/../convex/_generated/dataModel";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { EmailBrandingCard } from "@/components/settings/email-branding-card";
 import { EmailTemplateEditor } from "@/components/settings/email-template-editor";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,7 @@ export default function NotificationsSettingsPage() {
 			/>
 
 			<div className="mb-10">
+				<EmailBrandingCard />
 				<EmailTemplateEditor />
 			</div>
 

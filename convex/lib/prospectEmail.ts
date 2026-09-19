@@ -12,9 +12,11 @@ import {
 	BRAND_NAME,
 	bookingConfirmationTemplate,
 	cancellationTemplate,
+	type EmailBrand,
 	reminderTemplate,
 	rescheduleTemplate,
 	textToHtml,
+	withBrand,
 } from "./emailTemplates";
 
 export interface ProspectEmailData {
@@ -57,6 +59,15 @@ export function templateValues(d: ProspectEmailData): TemplateValues {
 }
 
 export function renderProspectEmail(
+	kind: EmailKind,
+	d: ProspectEmailData,
+	template: EmailTemplateContent | null,
+	brand?: Partial<EmailBrand> | null,
+): { subject: string; html: string } {
+	return withBrand(brand, () => renderInBrand(kind, d, template));
+}
+
+function renderInBrand(
 	kind: EmailKind,
 	d: ProspectEmailData,
 	template: EmailTemplateContent | null,
