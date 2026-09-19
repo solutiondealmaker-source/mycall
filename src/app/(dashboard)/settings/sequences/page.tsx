@@ -16,6 +16,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
+import { TEMPLATE_VARIABLES } from "@/../convex/lib/emailContent";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,12 @@ const TRIGGERS = [
 		value: "abandoned_form",
 		label: "Formulaire abandonné",
 		help: "Le prospect a laissé ses coordonnées sans réserver. Les délais courent depuis l'abandon.",
+		negative: false,
+	},
+	{
+		value: "after_held",
+		label: "Après un rendez-vous tenu",
+		help: "Se déclenche quand un rendez-vous est marqué « tenu ». Les délais courent depuis ce moment : remerciement, suite de l'accompagnement.",
 		negative: false,
 	},
 	{
@@ -237,6 +244,30 @@ export default function SequencesPage() {
 										<p className="text-xs text-[var(--ink-muted)] mt-1 leading-relaxed">
 											{trigger?.help}
 										</p>
+										<label
+											htmlFor={`stopwon-${seq._id}`}
+											className="mt-2 flex items-center gap-2 text-xs text-[var(--ink-muted)] cursor-pointer"
+										>
+											<Switch
+												id={`stopwon-${seq._id}`}
+												checked={seq.stopOnWon ?? true}
+												onCheckedChange={(v) =>
+													run(
+														`stopwon-${seq._id}`,
+														() =>
+															updateSequence({
+																sequenceId: seq._id,
+																stopOnWon: v,
+															}),
+														v
+															? "La séquence s'arrêtera quand le lead est gagné"
+															: "La séquence continuera après la signature",
+													)
+												}
+												className="scale-75 origin-left"
+											/>
+											S'arrêter quand le lead est gagné
+										</label>
 									</div>
 									<div className="flex items-center gap-3 shrink-0">
 										<div className="flex items-center gap-2">
@@ -339,13 +370,29 @@ export default function SequencesPage() {
 				</div>
 			)}
 
-			<p className="text-xs text-[var(--ink-muted)] mt-6 leading-relaxed">
-				Écris <code className="path">{"{{prenom}}"}</code> dans le sujet ou le
-				message pour insérer le prénom du prospect. Chaque email porte un lien
-				de désabonnement — obligatoire, et il arrête la séquence immédiatement.
-				Une séquence s'arrête aussi d'elle-même si le lead devient client, ou si
-				son rendez-vous est annulé.
-			</p>
+			<div className="text-xs text-[var(--ink-muted)] mt-6 leading-relaxed space-y-2">
+				<p>Variables utilisables dans le sujet et le message :</p>
+				<div className="flex flex-wrap gap-1.5">
+					{TEMPLATE_VARIABLES.filter(
+						(v) => v.key !== "ancienne_date" && v.key !== "motif",
+					).map((v) => (
+						<span
+							key={v.key}
+							title={v.label}
+							className="px-2 py-0.5 rounded-full bg-[var(--surface-muted)] font-mono text-[11px] text-[var(--ink)]"
+						>
+							{`{{${v.key}}}`}
+						</span>
+					))}
+				</div>
+				<p>
+					La date, le lien de visio et les liens d'annulation viennent du
+					rendez-vous qui a déclenché la séquence ; sans rendez-vous, ces
+					variables disparaissent du texte. Chaque email porte un lien de
+					désabonnement — obligatoire, et il arrête la séquence immédiatement.
+					Une séquence s'arrête aussi si son rendez-vous est annulé.
+				</p>
+			</div>
 		</div>
 	);
 }

@@ -2,102 +2,12 @@
 
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import {
-	Bell,
-	CheckCircle,
-	Clock,
-	Mail,
-	RefreshCw,
-	User,
-	XCircle,
-} from "lucide-react";
+import { Bell, CheckCircle, Mail, XCircle } from "lucide-react";
 import { api } from "@/../convex/_generated/api";
 import type { Doc } from "@/../convex/_generated/dataModel";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { EmailTemplateEditor } from "@/components/settings/email-template-editor";
 import { cn } from "@/lib/utils";
-
-// ─── Template catalogue ───────────────────────────────────────────────────────
-
-const TEMPLATES = [
-	{
-		id: "email_confirmation",
-		label: "Confirmation prospect",
-		description:
-			"Envoyée au prospect dès qu'un créneau est confirmé. Skippée si Google Calendar a déjà envoyé une invitation Meet.",
-		icon: CheckCircle,
-		variables: [
-			"prospectFirstName",
-			"eventName",
-			"dateTime",
-			"hostName",
-			"meetUrl (optionnel)",
-			"cancelUrl",
-			"rescheduleUrl",
-		],
-	},
-	{
-		id: "email_host_notif",
-		label: "Notification hôte",
-		description:
-			"Envoyée au closer/host à chaque nouveau booking. Inclut les réponses du formulaire de qualification.",
-		icon: User,
-		variables: [
-			"hostName",
-			"prospectName",
-			"prospectEmail",
-			"prospectPhone",
-			"eventName",
-			"dateTime",
-			"meetUrl (optionnel)",
-			"customAnswers (tableau)",
-		],
-	},
-	{
-		id: "email_reminder",
-		label: "Rappel H-2",
-		description:
-			"Envoyé au prospect ~2h avant le rendez-vous. Idempotent — un seul envoi garanti via reminderSentAt.",
-		icon: Clock,
-		variables: [
-			"prospectFirstName",
-			"eventName",
-			"dateTime",
-			"hostName",
-			"meetUrl (optionnel)",
-			"cancelUrl",
-		],
-	},
-	{
-		id: "email_cancellation",
-		label: "Annulation",
-		description:
-			"Envoyée au prospect quand un booking passe en statut cancelled (via token ou par l'admin).",
-		icon: XCircle,
-		variables: [
-			"prospectFirstName",
-			"eventName",
-			"dateTime",
-			"reason (optionnel)",
-			"rescheduleUrl (si allowReschedule=true)",
-		],
-	},
-	{
-		id: "email_reschedule",
-		label: "Replanification",
-		description:
-			"Envoyée au prospect après un reschedule. Affiche l'ancien et le nouveau créneau côte-à-côte.",
-		icon: RefreshCw,
-		variables: [
-			"prospectFirstName",
-			"eventName",
-			"oldDateTime",
-			"newDateTime",
-			"hostName",
-			"meetUrl (optionnel)",
-			"cancelUrl",
-		],
-	},
-] as const;
 
 // ─── Badge statut ─────────────────────────────────────────────────────────────
 
@@ -129,6 +39,9 @@ const TYPE_LABELS: Record<string, string> = {
 	email_host_notif: "Notif hôte",
 	email_cancellation: "Annulation",
 	email_reschedule: "Replanification",
+	email_invitation: "Invitation équipe",
+	email_abandoned_lead: "Formulaire abandonné",
+	email_sequence: "Séquence",
 };
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -136,81 +49,16 @@ const TYPE_LABELS: Record<string, string> = {
 export default function NotificationsSettingsPage() {
 	const logs = useQuery(api.emailsInternal.listRecentLogs);
 
-	const containerVariants = {
-		hidden: {},
-		show: { transition: { staggerChildren: 0.02 } },
-	};
-
-	const itemVariants = {
-		hidden: { opacity: 0, y: 10 },
-		show: { opacity: 1, y: 0, transition: { duration: 0.15 } },
-	};
-
 	return (
 		<div className="animate-fade-in">
 			<PageHeader
-				title="Notifications email"
-				description="Les 5 emails envoyés automatiquement par l'outil, et les informations que chacun reprend."
+				title="Emails"
+				description="Personnalise le texte des emails envoyés aux prospects, et consulte les derniers envois."
 			/>
 
-			{/* Templates grid */}
-			<motion.div
-				variants={containerVariants}
-				initial="hidden"
-				animate="show"
-				className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-10"
-			>
-				{TEMPLATES.map((tpl) => {
-					const Icon = tpl.icon;
-					return (
-						<motion.div
-							key={tpl.id}
-							variants={itemVariants}
-							className="card-premium flex flex-col gap-3"
-						>
-							{/* Header */}
-							<div className="flex items-center gap-3">
-								<div className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-sm)] bg-[var(--brand-soft)] ring-1 ring-[var(--brand-glow)] shrink-0">
-									<Icon
-										className="w-4 h-4 text-[var(--brand)]"
-										strokeWidth={1.75}
-									/>
-								</div>
-								<div className="min-w-0">
-									<p className="text-sm font-semibold text-[var(--ink)] truncate">
-										{tpl.label}
-									</p>
-									<p className="text-[11px] text-emerald-400 font-medium">
-										Actif
-									</p>
-								</div>
-							</div>
-
-							{/* Description */}
-							<p className="text-xs text-[var(--ink-muted)] leading-relaxed">
-								{tpl.description}
-							</p>
-
-							{/* Variables */}
-							<div>
-								<p className="text-[10px] font-semibold text-[var(--ink-subtle)] uppercase tracking-wider mb-1.5">
-									Variables disponibles
-								</p>
-								<div className="flex flex-wrap gap-1">
-									{tpl.variables.map((v) => (
-										<span
-											key={v}
-											className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--surface-2)] text-[var(--ink-muted)] ring-1 ring-[var(--border)]"
-										>
-											{v}
-										</span>
-									))}
-								</div>
-							</div>
-						</motion.div>
-					);
-				})}
-			</motion.div>
+			<div className="mb-10">
+				<EmailTemplateEditor />
+			</div>
 
 			{/* Logs table */}
 			<section>

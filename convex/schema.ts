@@ -585,6 +585,24 @@ export default defineSchema({
 		updatedByUserId: v.optional(v.id("users")),
 	}).index("by_singleton", ["singleton"]),
 
+	// Textes personnalisés des emails prospects. Sans eventId : le texte vaut
+	// pour tous les événements ; avec : il remplace celui-ci pour cet événement.
+	emailTemplates: defineTable({
+		kind: v.union(
+			v.literal("confirmation"),
+			v.literal("reminder"),
+			v.literal("reschedule"),
+			v.literal("cancellation"),
+		),
+		eventId: v.optional(v.id("events")),
+		subject: v.string(),
+		heading: v.string(),
+		body: v.string(),
+		enabled: v.boolean(),
+		updatedAt: v.number(),
+		updatedByUserId: v.id("users"),
+	}).index("by_kind", ["kind"]),
+
 	// Automatisations (Make, Zapier…) — adresses appelées à chaque événement.
 	webhookEndpoints: defineTable({
 		url: v.string(),
@@ -685,8 +703,12 @@ export default defineSchema({
 			v.literal("abandoned_form"),
 			v.literal("no_show"),
 			v.literal("before_booking"),
+			// Après un rendez-vous tenu : remerciement, suite de l'accompagnement.
+			v.literal("after_held"),
 		),
 		isActive: v.boolean(),
+		// Arrêter la séquence quand le lead est gagné. Absent = oui.
+		stopOnWon: v.optional(v.boolean()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_trigger", ["trigger", "isActive"]),

@@ -20,20 +20,21 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 import { internalAction } from "./_generated/server";
+import { fillVariables } from "./lib/emailContent";
 import {
 	abandonedLeadTemplate,
 	BRAND_NAME,
-	bookingConfirmationTemplate,
-	cancellationTemplate,
 	escapeHtml,
 	formatDateFR,
 	hostNotificationTemplate,
 	invitationTemplate,
-	reminderTemplate,
-	rescheduleTemplate,
 	sequenceStepTemplate,
 } from "./lib/emailTemplates";
 import { buildIcs, googleCalendarUrl, outlookCalendarUrl } from "./lib/ics";
+import {
+	type ProspectEmailData,
+	renderProspectEmail,
+} from "./lib/prospectEmail";
 import { extractAddress, extractName, senderFor } from "./lib/sender";
 
 // Base des liens envoyés aux prospects (annulation, reprogrammation) et à
@@ -178,6 +179,13 @@ async function providerPost(
 	}
 }
 
+// Envoi d'un contenu déjà rendu — aperçus et emails de test.
+export const sendRawEmail = internalAction({
+	args: { to: v.string(), subject: v.string(), html: v.string() },
+	handler: async (ctx, { to, subject, html }): Promise<ResendResult> =>
+		await resendSend(ctx, { to, subject, html }),
+});
+
 // Email de test, envoyé depuis Intégrations pour valider le fournisseur.
 export const sendTestEmail = internalAction({
 	args: { to: v.string() },
@@ -193,6 +201,32 @@ export const sendTestEmail = internalAction({
 		});
 	},
 });
+
+// Données communes aux emails prospects, telles que les attendent les
+// templates et le remplacement des variables.
+function prospectData(
+	booking: {
+		prospectFirstName: string;
+		prospectLastName: string;
+		googleMeetUrl?: string | null;
+		cancelToken: string;
+		rescheduleToken: string;
+	},
+	event: { name: string; slug: string },
+	host: { name?: string } | null,
+): ProspectEmailData {
+	return {
+		firstName: booking.prospectFirstName,
+		lastName: booking.prospectLastName,
+		eventName: event.name,
+		dateTime: "",
+		hostName: host?.name ?? null,
+		meetUrl: booking.googleMeetUrl,
+		cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
+		rescheduleUrl: `${SITE_URL}/book/reschedule/${booking.rescheduleToken}`,
+		bookingUrl: `${SITE_URL}/book/${event.slug}`,
+	};
+}
 
 // ============================================================
 // Pièce jointe .ics
@@ -317,22 +351,24 @@ export const sendBookingConfirmation = internalAction({
 			location: booking.googleMeetUrl ?? undefined,
 		};
 
-		const html = bookingConfirmationTemplate({
-			prospectName: booking.prospectName,
-			prospectFirstName: booking.prospectFirstName,
-			eventName: event.name,
-			dateTime: dateStr,
-			hostName: host?.name ?? null,
-			meetUrl: booking.googleMeetUrl,
-			cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
-			rescheduleUrl: `${SITE_URL}/book/reschedule/${booking.rescheduleToken}`,
-			googleCalUrl: googleCalendarUrl(calLink),
-			outlookCalUrl: outlookCalendarUrl(calLink),
-		});
+		const template = await ctx.runQuery(
+			internal.emailCustomization.resolveTemplateInternal,
+			{ kind: "confirmation", eventId: event._id },
+		);
+		const { subject, html } = renderProspectEmail(
+			"confirmation",
+			{
+				...prospectData(booking, event, host),
+				dateTime: dateStr,
+				googleCalUrl: googleCalendarUrl(calLink),
+				outlookCalUrl: outlookCalendarUrl(calLink),
+			},
+			template,
+		);
 
 		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
-			subject: `Confirmation — ${event.name} le ${dateStr}`,
+			subject,
 			html,
 			attachments: [icsAttachment(booking, event.name, host?.name ?? null)],
 			senderUser: host,
@@ -465,18 +501,19 @@ export const sendReminder = internalAction({
 
 		const dateStr = formatDateFR(booking.startTime, booking.timezone);
 
-		const html = reminderTemplate({
-			prospectFirstName: booking.prospectFirstName,
-			eventName: event.name,
-			dateTime: dateStr,
-			hostName: host?.name ?? null,
-			meetUrl: booking.googleMeetUrl,
-			cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
-		});
+		const template = await ctx.runQuery(
+			internal.emailCustomization.resolveTemplateInternal,
+			{ kind: "reminder", eventId: event._id },
+		);
+		const { subject, html } = renderProspectEmail(
+			"reminder",
+			{ ...prospectData(booking, event, host), dateTime: dateStr },
+			template,
+		);
 
 		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
-			subject: `Rappel — votre rendez-vous dans 2h (${event.name})`,
+			subject,
 			html,
 			senderUser: host,
 		});
@@ -519,17 +556,24 @@ export const sendCancellation = internalAction({
 			? `${SITE_URL}/book/reschedule/${booking.rescheduleToken}`
 			: undefined;
 
-		const html = cancellationTemplate({
-			prospectFirstName: booking.prospectFirstName,
-			eventName: event.name,
-			dateTime: dateStr,
-			reason: booking.cancelReason,
-			rescheduleUrl,
-		});
+		const template = await ctx.runQuery(
+			internal.emailCustomization.resolveTemplateInternal,
+			{ kind: "cancellation", eventId: event._id },
+		);
+		const { subject, html } = renderProspectEmail(
+			"cancellation",
+			{
+				...prospectData(booking, event, host),
+				dateTime: dateStr,
+				rescheduleUrl: rescheduleUrl ?? null,
+				reason: booking.cancelReason,
+			},
+			template,
+		);
 
 		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
-			subject: `Annulation — ${event.name}`,
+			subject,
 			html,
 			senderUser: host,
 		});
@@ -574,19 +618,23 @@ export const sendReschedule = internalAction({
 		const oldDateStr = formatDateFR(previousStartTime, previousTimezone);
 		const newDateStr = formatDateFR(booking.startTime, booking.timezone);
 
-		const html = rescheduleTemplate({
-			prospectFirstName: booking.prospectFirstName,
-			eventName: event.name,
-			oldDateTime: oldDateStr,
-			newDateTime: newDateStr,
-			hostName: host?.name ?? null,
-			meetUrl: booking.googleMeetUrl,
-			cancelUrl: `${SITE_URL}/book/manage/${booking.cancelToken}`,
-		});
+		const template = await ctx.runQuery(
+			internal.emailCustomization.resolveTemplateInternal,
+			{ kind: "reschedule", eventId: event._id },
+		);
+		const { subject, html } = renderProspectEmail(
+			"reschedule",
+			{
+				...prospectData(booking, event, host),
+				dateTime: newDateStr,
+				oldDateTime: oldDateStr,
+			},
+			template,
+		);
 
 		const result = await resendSend(ctx, {
 			to: booking.prospectEmail,
-			subject: `Replanification — ${event.name} le ${newDateStr}`,
+			subject,
 			html,
 			// Même UID que la confirmation : l'agenda du prospect déplace l'entrée
 			// existante au lieu d'en créer une seconde.
@@ -737,13 +785,14 @@ export const sendAbandonedLead = internalAction({
 export const sendSequenceStep = internalAction({
 	args: {
 		leadId: v.id("leads"),
+		bookingId: v.optional(v.id("bookings")),
 		subject: v.string(),
 		body: v.string(),
 	},
-	handler: async (ctx, { leadId, subject, body }) => {
+	handler: async (ctx, { leadId, bookingId, subject, body }) => {
 		const lead = await ctx.runQuery(
 			internal.sequences.getLeadForSequenceInternal,
-			{ leadId },
+			{ leadId, bookingId },
 		);
 		// Double garde : le lead a pu se désabonner entre la planification de
 		// l'étape et son envoi.
@@ -755,10 +804,30 @@ export const sendSequenceStep = internalAction({
 		);
 		if (!token) return;
 
-		// Personnalisation minimale : le prénom, seule variable dont on est sûr.
-		const firstName = lead.firstName ?? "";
-		const fill = (s: string) =>
-			s.replace(/\{\{\s*prenom\s*\}\}/gi, firstName).trim();
+		// Mêmes variables que les emails de rendez-vous. Celles qui n'ont pas de
+		// valeur (pas de rendez-vous rattaché, par exemple) disparaissent du texte.
+		const values = {
+			prenom: lead.firstName,
+			nom: lead.lastName,
+			evenement: lead.eventName,
+			date:
+				lead.startTime && lead.timezone
+					? formatDateFR(lead.startTime, lead.timezone)
+					: null,
+			closer: lead.closerName,
+			lien_meet: lead.meetUrl,
+			lien_reservation: lead.eventSlug
+				? `${SITE_URL}/book/${lead.eventSlug}`
+				: null,
+			lien_replanification: lead.rescheduleToken
+				? `${SITE_URL}/book/reschedule/${lead.rescheduleToken}`
+				: null,
+			lien_annulation: lead.cancelToken
+				? `${SITE_URL}/book/manage/${lead.cancelToken}`
+				: null,
+			entreprise: BRAND_NAME,
+		};
+		const fill = (s: string) => fillVariables(s, values).trim();
 
 		const closer = lead.closerUserId
 			? await ctx.runQuery(internal.emailsInternal.getUserForEmail, {

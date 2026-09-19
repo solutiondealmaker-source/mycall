@@ -1582,6 +1582,18 @@ export const setOutcome = mutation({
 			...statusPatch,
 		});
 
+		// Un rendez-vous qui vient d'être marqué tenu déclenche la séquence
+		// d'après-rendez-vous (remerciement, suite). La condition porte sur le
+		// changement : rouvrir la fiche pour corriger l'issue ne relance pas.
+		if (args.tenue === "tenu" && booking.tenue !== "tenu") {
+			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
+				trigger: "after_held" as const,
+				leadId: booking.leadId,
+				bookingId: args.bookingId,
+				anchorAt: now,
+			});
+		}
+
 		// Un no-show d�clenche la s�quence de reprogrammation, s'il en existe une.
 		if (args.tenue === "no_show") {
 			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {

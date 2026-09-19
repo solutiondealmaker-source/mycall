@@ -154,6 +154,43 @@ function secondaryLink(label: string, url: string): string {
 	return `<a href="${url}" style="color:${BRAND_COLOR};text-decoration:underline;font-size:13px;font-weight:500">${label}</a>`;
 }
 
+// Texte saisi dans l'éditeur → HTML. Le HTML est échappé (une apostrophe ou un
+// chevron ne doit pas casser le rendu), une ligne vide sépare les paragraphes,
+// et les adresses web deviennent des liens cliquables.
+export function textToHtml(text: string): string {
+	return escapeHtml(text.trim())
+		.split(/\n{2,}/)
+		.map((p) => {
+			const withLinks = p.replace(
+				/https?:\/\/[^\s<]+[^\s<.,;:!?)]/g,
+				(url) =>
+					`<a href="${url}" style="color:${BRAND_COLOR};word-break:break-all">${url}</a>`,
+			);
+			return `<p style="margin:0 0 16px;font-size:15px;color:#334155;line-height:1.7">${withLinks.replace(/\n/g, "<br>")}</p>`;
+		})
+		.join("\n");
+}
+
+// Titre et introduction personnalisés, qui remplacent ceux par défaut.
+export interface CustomIntro {
+	heading: string;
+	bodyHtml: string;
+}
+
+function introBlock(
+	defaultHeading: string,
+	defaultIntro: string,
+	custom: CustomIntro | undefined,
+): string {
+	const heading = custom ? escapeHtml(custom.heading) : defaultHeading;
+	const body = custom
+		? `<div style="margin:0 0 12px">${custom.bodyHtml}</div>`
+		: `<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">${defaultIntro}</p>`;
+	return `
+${heading ? `<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">${heading}</h1>` : ""}
+${body}`;
+}
+
 // Encadré d'information (date, événement, etc.)
 function infoBlock(lines: string[]): string {
 	return `
@@ -179,6 +216,7 @@ export interface BookingConfirmationArgs {
 	// demande d'ouvrir une pièce jointe ; ces liens font l'ajout en un clic.
 	googleCalUrl?: string;
 	outlookCalUrl?: string;
+	custom?: CustomIntro;
 }
 
 // Ligne « Ajouter à mon agenda ». Depuis que Google ne notifie plus le
@@ -217,6 +255,7 @@ export function bookingConfirmationTemplate(
 		rescheduleUrl,
 		googleCalUrl,
 		outlookCalUrl,
+		custom,
 	} = args;
 
 	const meetSection = meetUrl
@@ -231,8 +270,7 @@ export function bookingConfirmationTemplate(
 		: "";
 
 	const content = `
-<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Rendez-vous confirmé</h1>
-<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous est bien enregistré.</p>
+${introBlock("Rendez-vous confirmé", `Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous est bien enregistré.`, custom)}
 
 ${infoBlock([
 	`<p style="margin:0;font-size:16px;font-weight:600;color:#1E293B">${escapeHtml(eventName)}</p>`,
@@ -341,6 +379,7 @@ export interface ReminderArgs {
 	hostName: string | null;
 	meetUrl?: string | null;
 	cancelUrl: string;
+	custom?: CustomIntro;
 }
 
 export function reminderTemplate(args: ReminderArgs): string {
@@ -351,6 +390,7 @@ export function reminderTemplate(args: ReminderArgs): string {
 		hostName,
 		meetUrl,
 		cancelUrl,
+		custom,
 	} = args;
 
 	const meetSection = meetUrl
@@ -362,8 +402,7 @@ export function reminderTemplate(args: ReminderArgs): string {
 		: "";
 
 	const content = `
-<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Rappel — dans 2 heures</h1>
-<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous approche.</p>
+${introBlock("Rappel — dans 2 heures", `Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous approche.`, custom)}
 
 ${infoBlock([
 	`<p style="margin:0;font-size:16px;font-weight:600;color:#1E293B">${escapeHtml(eventName)}</p>`,
@@ -390,11 +429,18 @@ export interface CancellationArgs {
 	dateTime: string;
 	reason?: string | null;
 	rescheduleUrl?: string | null;
+	custom?: CustomIntro;
 }
 
 export function cancellationTemplate(args: CancellationArgs): string {
-	const { prospectFirstName, eventName, dateTime, reason, rescheduleUrl } =
-		args;
+	const {
+		prospectFirstName,
+		eventName,
+		dateTime,
+		reason,
+		rescheduleUrl,
+		custom,
+	} = args;
 
 	const reasonLine = reason
 		? `<p style="margin:10px 0 0;font-size:13px;color:#64748B;font-style:italic">Motif&nbsp;: ${escapeHtml(reason)}</p>`
@@ -405,8 +451,7 @@ export function cancellationTemplate(args: CancellationArgs): string {
 		: "";
 
 	const content = `
-<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Rendez-vous annulé</h1>
-<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous a bien été annulé.</p>
+${introBlock("Rendez-vous annulé", `Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous a bien été annulé.`, custom)}
 
 ${infoBlock([
 	`<p style="margin:0;font-size:15px;font-weight:600;color:#1E293B">${escapeHtml(eventName)}</p>`,
@@ -433,6 +478,7 @@ export interface RescheduleArgs {
 	hostName: string | null;
 	meetUrl?: string | null;
 	cancelUrl: string;
+	custom?: CustomIntro;
 }
 
 export function rescheduleTemplate(args: RescheduleArgs): string {
@@ -444,6 +490,7 @@ export function rescheduleTemplate(args: RescheduleArgs): string {
 		hostName,
 		meetUrl,
 		cancelUrl,
+		custom,
 	} = args;
 
 	const hostLine = hostName
@@ -458,8 +505,7 @@ export function rescheduleTemplate(args: RescheduleArgs): string {
 		: "";
 
 	const content = `
-<h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F172A;letter-spacing:-0.02em">Rendez-vous replanifié</h1>
-<p style="margin:0 0 28px;font-size:14px;color:#64748B;line-height:1.6">Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous a été déplacé.</p>
+${introBlock("Rendez-vous replanifié", `Bonjour ${escapeHtml(prospectFirstName)}, votre rendez-vous a été déplacé.`, custom)}
 
 <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:14px 18px;margin:0 0 16px">
   <p style="margin:0;font-size:12px;font-weight:600;color:#9A3412;text-transform:uppercase;letter-spacing:0.06em">Ancien créneau</p>
@@ -599,16 +645,8 @@ export interface SequenceStepArgs {
 export function sequenceStepTemplate(args: SequenceStepArgs): string {
 	const { bodyText, unsubscribeUrl } = args;
 
-	// Le corps est saisi en texte simple dans l'éditeur : on échappe le HTML
-	// (une apostrophe ou un chevron ne doit pas casser le rendu) puis on
-	// reconstitue les paragraphes.
-	const paragraphs = escapeHtml(bodyText)
-		.split(/\n{2,}/)
-		.map(
-			(p) =>
-				`<p style="margin:0 0 16px;font-size:15px;color:#334155;line-height:1.7">${p.replace(/\n/g, "<br>")}</p>`,
-		)
-		.join("\n");
+	// Le corps est saisi en texte simple dans l'éditeur.
+	const paragraphs = textToHtml(bodyText);
 
 	const content = `
 ${paragraphs}

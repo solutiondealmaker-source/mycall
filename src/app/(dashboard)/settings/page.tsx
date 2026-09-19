@@ -53,8 +53,8 @@ const SETTINGS_CARDS = [
 	{
 		href: "/settings/notifications",
 		icon: Bell,
-		title: "Notifications",
-		description: "Emails de confirmation, rappels, alertes",
+		title: "Emails",
+		description: "Textes des emails prospects, journal d'envoi",
 		adminOnly: false,
 	},
 	{

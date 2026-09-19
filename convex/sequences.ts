@@ -32,6 +32,7 @@ const TRIGGER = v.union(
 	v.literal("abandoned_form"),
 	v.literal("no_show"),
 	v.literal("before_booking"),
+	v.literal("after_held"),
 );
 
 // ============================================================
@@ -109,6 +110,9 @@ export const createSequence = mutation({
 		return await ctx.db.insert("emailSequences", {
 			name: name.trim().slice(0, 120) || "Sans nom",
 			trigger,
+			// Une séquence d'après-rendez-vous s'adresse aussi aux clients qui
+			// viennent de signer : elle ne s'arrête pas sur un lead gagné.
+			stopOnWon: trigger !== "after_held",
 			// Inactive à la création : on n'envoie rien tant que les étapes ne sont
 			// pas écrites et relues.
 			isActive: false,
@@ -124,8 +128,9 @@ export const updateSequence = mutation({
 		name: v.optional(v.string()),
 		trigger: v.optional(TRIGGER),
 		isActive: v.optional(v.boolean()),
+		stopOnWon: v.optional(v.boolean()),
 	},
-	handler: async (ctx, { sequenceId, name, trigger, isActive }) => {
+	handler: async (ctx, { sequenceId, name, trigger, isActive, stopOnWon }) => {
 		await requireAdmin(ctx);
 		const seq = await ctx.db.get(sequenceId);
 		if (!seq) throw new Error("Séquence introuvable");
@@ -144,6 +149,7 @@ export const updateSequence = mutation({
 			...(name !== undefined ? { name: name.trim().slice(0, 120) } : {}),
 			...(trigger !== undefined ? { trigger } : {}),
 			...(isActive !== undefined ? { isActive } : {}),
+			...(stopOnWon !== undefined ? { stopOnWon } : {}),
 			updatedAt: Date.now(),
 		});
 		return { ok: true };
@@ -337,9 +343,14 @@ export const enrollByTriggerInternal = internalMutation({
 // ============================================================
 
 // Raisons d'arrêt, dans l'ordre où on les teste.
-function stopReasonFor(lead: Doc<"leads">): string | null {
+function stopReasonFor(
+	lead: Doc<"leads">,
+	seq: Doc<"emailSequences"> | null,
+): string | null {
 	if (lead.emailOptOutAt) return "Désabonnement";
-	if (lead.status === "gagne") return "Lead gagné";
+	// Un lead gagné n'a plus à être relancé — sauf pour une séquence
+	// d'après-rendez-vous, dont c'est justement le public.
+	if (lead.status === "gagne" && (seq?.stopOnWon ?? true)) return "Lead gagné";
 	return null;
 }
 
@@ -366,7 +377,8 @@ export const processDue = internalMutation({
 				continue;
 			}
 
-			const reason = stopReasonFor(lead);
+			const sequence = await ctx.db.get(enr.sequenceId);
+			const reason = stopReasonFor(lead, sequence);
 			if (reason) {
 				await ctx.db.patch(enr._id, {
 					status: "stopped" as const,
@@ -438,6 +450,7 @@ export const processDue = internalMutation({
 				});
 				await ctx.scheduler.runAfter(0, internal.emails.sendSequenceStep, {
 					leadId: enr.leadId,
+					bookingId: enr.bookingId,
 					subject: step.subject,
 					body: step.body,
 				});
@@ -506,10 +519,21 @@ export const unsubscribeByTokenInternal = internalMutation({
 });
 
 export const getLeadForSequenceInternal = internalQuery({
-	args: { leadId: v.id("leads") },
-	handler: async (ctx, { leadId }) => {
+	args: { leadId: v.id("leads"), bookingId: v.optional(v.id("bookings")) },
+	handler: async (ctx, { leadId, bookingId }) => {
 		const lead = await ctx.db.get(leadId);
 		if (!lead) return null;
+		const booking = bookingId ? await ctx.db.get(bookingId) : null;
+		const event = booking
+			? await ctx.db.get(booking.eventId)
+			: lead.eventId
+				? await ctx.db.get(lead.eventId)
+				: null;
+		const closer = lead.closerUserId
+			? await ctx.db.get(lead.closerUserId)
+			: booking
+				? await ctx.db.get(booking.hostId)
+				: null;
 		return {
 			email: lead.email ?? null,
 			firstName: lead.firstName ?? null,
@@ -517,6 +541,15 @@ export const getLeadForSequenceInternal = internalQuery({
 			optedOut: Boolean(lead.emailOptOutAt),
 			// Les relances partent de l'adresse de son closer, s'il en a une.
 			closerUserId: lead.closerUserId ?? null,
+			// Variables disponibles dans le texte de l'étape.
+			closerName: closer?.name ?? null,
+			eventName: event?.name ?? null,
+			eventSlug: event?.slug ?? null,
+			startTime: booking?.startTime ?? null,
+			timezone: booking?.timezone ?? null,
+			meetUrl: booking?.googleMeetUrl ?? null,
+			cancelToken: booking?.cancelToken ?? null,
+			rescheduleToken: booking?.rescheduleToken ?? null,
 		};
 	},
 });
