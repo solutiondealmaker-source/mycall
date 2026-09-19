@@ -30,7 +30,7 @@ import { emitEvent } from "./lib/outbound";
 
 // Portée de LECTURE. `seeAll` couvre les admins et les observateurs.
 // À n'utiliser que dans des `query`.
-async function getLeadScope(
+export async function getLeadScope(
 	ctx: QueryCtx | MutationCtx,
 ): Promise<{ userId: Id<"users">; seeAll: boolean }> {
 	const user = await getAuthenticatedUser(ctx);
@@ -51,7 +51,7 @@ async function getLeadWriteScope(
 	return { userId: user._id, seeAll: isAdminUser(user) };
 }
 
-function ownsLead(lead: Doc<"leads">, userId: Id<"users">): boolean {
+export function ownsLead(lead: Doc<"leads">, userId: Id<"users">): boolean {
 	return lead.closerUserId === userId || lead.setterUserId === userId;
 }
 // Paginated list — used by the CRM pipeline view.

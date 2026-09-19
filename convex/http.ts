@@ -417,6 +417,88 @@ http.route({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FATHOM — appels enregistrés
+//
+// Une adresse par connexion (/webhooks/fathom/<id>) : chaque membre a son
+// propre compte Fathom, donc son propre secret de signature. Format Standard
+// Webhooks : en-têtes webhook-id / webhook-timestamp / webhook-signature
+// (« v1,<base64> », éventuellement plusieurs séparées par des espaces).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FATHOM_TOLERANCE_SEC = 300;
+
+async function fathomSignature(
+	secret: string,
+	content: string,
+): Promise<string> {
+	const raw = secret.startsWith("whsec_") ? secret.slice(6) : secret;
+	const keyBytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+	const key = await crypto.subtle.importKey(
+		"raw",
+		keyBytes,
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"],
+	);
+	const sig = await crypto.subtle.sign(
+		"HMAC",
+		key,
+		new TextEncoder().encode(content),
+	);
+	let s = "";
+	for (const b of new Uint8Array(sig)) s += String.fromCharCode(b);
+	return btoa(s);
+}
+
+http.route({
+	pathPrefix: "/webhooks/fathom/",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const connectionId =
+			new URL(request.url).pathname.split("/").filter(Boolean).pop() ?? "";
+		const conn = await ctx.runQuery(internal.fathom.getWebhookSecretInternal, {
+			connectionId,
+		});
+		// Connexion supprimée : 410 pour que Fathom cesse d'envoyer.
+		if (!conn) return new Response("Unknown connection", { status: 410 });
+
+		const body = await request.text();
+		const id = request.headers.get("webhook-id") ?? "";
+		const timestamp = request.headers.get("webhook-timestamp") ?? "";
+		const header = request.headers.get("webhook-signature") ?? "";
+		if (!id || !timestamp || !header) {
+			return new Response("Missing signature", { status: 400 });
+		}
+		const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+		if (!Number.isFinite(age) || age > FATHOM_TOLERANCE_SEC) {
+			return new Response("Stale timestamp", { status: 400 });
+		}
+
+		let expected: string;
+		try {
+			expected = await fathomSignature(
+				conn.secret,
+				`${id}.${timestamp}.${body}`,
+			);
+		} catch {
+			return new Response("Invalid secret", { status: 500 });
+		}
+		const valid = header
+			.split(" ")
+			.map((part) => part.split(",")[1] ?? "")
+			.some((sig) => constantTimeEqual(sig, expected));
+		if (!valid) return new Response("Invalid signature", { status: 401 });
+
+		// Traitement hors requête : Fathom attend une réponse rapide.
+		await ctx.scheduler.runAfter(0, internal.fathom.receiveInternal, {
+			connectionId: conn.id,
+			body,
+		});
+		return new Response(null, { status: 200 });
+	}),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API ENTRANTE — Make, Zapier, n8n…
 //
 // Authentification par clé (Paramètres → Intégrations) : en-tête

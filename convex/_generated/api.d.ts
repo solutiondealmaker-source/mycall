@@ -22,6 +22,7 @@ import type * as emailSettings from "../emailSettings.js";
 import type * as emails from "../emails.js";
 import type * as emailsInternal from "../emailsInternal.js";
 import type * as events from "../events.js";
+import type * as fathom from "../fathom.js";
 import type * as googleAccount from "../googleAccount.js";
 import type * as googleActions from "../googleActions.js";
 import type * as googleCalendarChannels from "../googleCalendarChannels.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   emails: typeof emails;
   emailsInternal: typeof emailsInternal;
   events: typeof events;
+  fathom: typeof fathom;
   googleAccount: typeof googleAccount;
   googleActions: typeof googleActions;
   googleCalendarChannels: typeof googleCalendarChannels;

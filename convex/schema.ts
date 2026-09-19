@@ -581,6 +581,8 @@ export default defineSchema({
 		// systeme.io — synchronisation des contacts et des tags.
 		systemeioApiKey: v.optional(v.string()),
 		systemeioTagPrefix: v.optional(v.string()),
+		// Fathom : marquer « tenu » le rendez-vous d'un appel enregistré.
+		fathomAutoHeld: v.optional(v.boolean()),
 		updatedAt: v.number(),
 		updatedByUserId: v.optional(v.id("users")),
 	}).index("by_singleton", ["singleton"]),
@@ -602,6 +604,57 @@ export default defineSchema({
 		updatedAt: v.number(),
 		updatedByUserId: v.id("users"),
 	}).index("by_kind", ["kind"]),
+
+	// Fathom — un compte par membre : une clé Fathom ne voit que les
+	// enregistrements de son propriétaire et ceux qu'on lui partage.
+	fathomConnections: defineTable({
+		label: v.string(), // « Fathom de Julie »
+		userId: v.optional(v.id("users")), // membre dont c'est le compte
+		apiKey: v.string(),
+		webhookId: v.optional(v.string()),
+		webhookSecret: v.optional(v.string()),
+		accountEmail: v.optional(v.string()),
+		createdByUserId: v.id("users"),
+		createdAt: v.number(),
+		lastReceivedAt: v.optional(v.number()),
+		lastError: v.optional(v.string()),
+	}),
+
+	// Enregistrements d'appels (Fathom), rattachés à un lead et si possible au
+	// rendez-vous correspondant.
+	callRecordings: defineTable({
+		source: v.literal("fathom"),
+		connectionId: v.optional(v.id("fathomConnections")),
+		recordingId: v.string(),
+		title: v.string(),
+		url: v.optional(v.string()),
+		shareUrl: v.optional(v.string()),
+		startedAt: v.optional(v.number()),
+		endedAt: v.optional(v.number()),
+		recordedByName: v.optional(v.string()),
+		recordedByEmail: v.optional(v.string()),
+		inviteeEmails: v.array(v.string()),
+		summaryMarkdown: v.optional(v.string()),
+		actionItems: v.optional(
+			v.array(
+				v.object({
+					description: v.string(),
+					completed: v.optional(v.boolean()),
+					assignee: v.optional(v.string()),
+				}),
+			),
+		),
+		transcript: v.optional(v.string()),
+		leadId: v.optional(v.id("leads")),
+		bookingId: v.optional(v.id("bookings")),
+		matchedBy: v.optional(
+			v.union(v.literal("booking"), v.literal("email"), v.literal("manual")),
+		),
+		createdAt: v.number(),
+	})
+		.index("by_recordingId", ["recordingId"])
+		.index("by_leadId", ["leadId"])
+		.index("by_createdAt", ["createdAt"]),
 
 	// Automatisations (Make, Zapier…) — adresses appelées à chaque événement.
 	webhookEndpoints: defineTable({

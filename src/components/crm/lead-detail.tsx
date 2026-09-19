@@ -17,6 +17,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AddFollowUpDialog } from "@/components/crm/add-follow-up-dialog";
 import { BookForLeadDialog } from "@/components/crm/book-for-lead-dialog";
+import { CallRecordings } from "@/components/crm/call-recordings";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { Button } from "@/components/ui/button";
 import {
@@ -834,6 +835,9 @@ function AppelsTab({
 					Aucun appel pour l'instant
 				</p>
 				<BookForLeadDialog lead={lead} />
+				<div className="w-full px-6">
+					<CallRecordings leadId={leadId} />
+				</div>
 			</div>
 		);
 	}
@@ -872,6 +876,7 @@ function AppelsTab({
 					</Button>
 				</div>
 			))}
+			<CallRecordings leadId={leadId} />
 		</div>
 	);
 }

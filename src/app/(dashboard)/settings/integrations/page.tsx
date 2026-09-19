@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { AutomationsCard } from "@/components/settings/automations-card";
 import { CalendlyImportCard } from "@/components/settings/calendly-import-card";
 import { EmailProviderCard } from "@/components/settings/email-provider-card";
+import { FathomCard } from "@/components/settings/fathom-card";
 import { SystemeioCard } from "@/components/settings/systemeio-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -330,6 +331,7 @@ export default function IntegrationsPage() {
 			</motion.div>
 
 			<EmailProviderCard />
+			<FathomCard />
 			<AutomationsCard />
 			<SystemeioCard />
 			<CalendlyImportCard />
