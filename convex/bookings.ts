@@ -953,6 +953,10 @@ async function commitBookingLead(
 
 	const now = Date.now();
 	await ctx.db.patch(args.bookingId, { leadId });
+	// Un lead déjà existant (créé à l'étape formulaire, ou d'un ancien
+	// rendez-vous) doit passer en « RDV réservé » maintenant que le créneau
+	// est confirmé.
+	await _applyAutoPhase(ctx, leadId);
 
 	if (args.partialLeadId) {
 		await ctx.db.patch(args.partialLeadId, {
