@@ -24,18 +24,6 @@ const COLOR_SWATCHES = [
 	{ value: "#374151", label: "Ardoise" },
 ] as const;
 
-// ─── Slug utils ───────────────────────────────────────────────────────────────
-
-function nameToSlug(name: string): string {
-	return name
-		.toLowerCase()
-		.normalize("NFD")
-		.replace(/[̀-ͯ]/g, "")
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 60);
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface DetailsSectionProps {
@@ -79,13 +67,11 @@ function formFromEvent(event: EventDoc): DetailsForm {
 export function DetailsSection({ event, onUpdate }: DetailsSectionProps) {
 	const [form, setForm] = useState<DetailsForm>(() => formFromEvent(event));
 	const [isDirty, setIsDirty] = useState(false);
-	const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
 	// Sync form si event change (ex: après save)
 	useEffect(() => {
 		setForm(formFromEvent(event));
 		setIsDirty(false);
-		setSlugManuallyEdited(false);
 	}, [event]);
 
 	const patch = useCallback(
@@ -96,21 +82,14 @@ export function DetailsSection({ event, onUpdate }: DetailsSectionProps) {
 		[],
 	);
 
-	// Auto-slug depuis nom si pas édité manuellement
-	const handleNameChange = useCallback(
-		(name: string) => {
-			setForm((prev) => ({
-				...prev,
-				name,
-				slug: slugManuallyEdited ? prev.slug : nameToSlug(name),
-			}));
-			setIsDirty(true);
-		},
-		[slugManuallyEdited],
-	);
+	// Renommer un événement existant ne touche jamais à son adresse : elle est
+	// peut-être déjà partagée (publicités, emails, réseaux sociaux).
+	const handleNameChange = useCallback((name: string) => {
+		setForm((prev) => ({ ...prev, name }));
+		setIsDirty(true);
+	}, []);
 
 	const handleSlugChange = useCallback((slug: string) => {
-		setSlugManuallyEdited(true);
 		setForm((prev) => ({
 			...prev,
 			slug: slug
@@ -142,7 +121,6 @@ export function DetailsSection({ event, onUpdate }: DetailsSectionProps) {
 	const handleCancel = useCallback(() => {
 		setForm(formFromEvent(event));
 		setIsDirty(false);
-		setSlugManuallyEdited(false);
 	}, [event]);
 
 	return (
