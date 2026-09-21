@@ -13,6 +13,7 @@ import {
 	bookingConfirmationTemplate,
 	cancellationTemplate,
 	type EmailBrand,
+	formatDateFR,
 	reminderTemplate,
 	rescheduleTemplate,
 	textToHtml,
@@ -149,16 +150,7 @@ function renderInBrand(
 // Données fictives de l'aperçu et de l'email de test.
 export function sampleEmailData(siteUrl: string): ProspectEmailData {
 	const start = Date.now() + 2 * 86_400_000;
-	const fmt = (ms: number) =>
-		new Intl.DateTimeFormat("fr-FR", {
-			weekday: "long",
-			day: "numeric",
-			month: "long",
-			year: "numeric",
-			hour: "2-digit",
-			minute: "2-digit",
-			timeZone: "Europe/Paris",
-		}).format(new Date(ms));
+	const fmt = (ms: number) => formatDateFR(ms, "Europe/Paris");
 	return {
 		firstName: "Camille",
 		lastName: "Martin",

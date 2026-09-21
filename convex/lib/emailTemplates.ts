@@ -144,16 +144,30 @@ export function escapeHtml(input: string | undefined | null): string {
 		.replace(/'/g, "&#39;");
 }
 
+// « mercredi 23 septembre à 12h35 ». L'année n'apparaît que si elle diffère de
+// l'année en cours (un rendez-vous de janvier pris en décembre), seul cas où
+// elle lève une ambiguïté.
 export function formatDateFR(ts: number, timezone: string): string {
-	return new Intl.DateTimeFormat("fr-FR", {
-		weekday: "long",
-		day: "numeric",
-		month: "long",
+	const parts = Object.fromEntries(
+		new Intl.DateTimeFormat("fr-FR", {
+			weekday: "long",
+			day: "numeric",
+			month: "long",
+			year: "numeric",
+			hour: "numeric",
+			minute: "2-digit",
+			hourCycle: "h23",
+			timeZone: timezone,
+		})
+			.formatToParts(new Date(ts))
+			.map((p) => [p.type, p.value]),
+	);
+	const currentYear = new Intl.DateTimeFormat("fr-FR", {
 		year: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
 		timeZone: timezone,
-	}).format(new Date(ts));
+	}).format(new Date());
+	const year = parts.year !== currentYear ? ` ${parts.year}` : "";
+	return `${parts.weekday} ${parts.day} ${parts.month}${year} à ${parts.hour}h${parts.minute}`;
 }
 
 // Base layout — shared chrome for all templates
