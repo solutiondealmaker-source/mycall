@@ -9,6 +9,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BRAND_NAME } from "@/lib/brand";
+import { errorMessage } from "@/lib/errors";
 
 const containerVariants = {
 	hidden: { opacity: 0, y: 16, scale: 0.98 },
@@ -55,9 +56,7 @@ export default function LoginPage() {
 				router.push("/dashboard");
 				router.refresh();
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Identifiants incorrects",
-				);
+				setError(errorMessage(err, "Identifiants incorrects"));
 			}
 		});
 	}

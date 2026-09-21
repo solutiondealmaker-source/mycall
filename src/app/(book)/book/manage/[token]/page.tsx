@@ -6,6 +6,7 @@ import { CalendarX2, Loader2 } from "lucide-react";
 import { use, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../../../convex/_generated/api";
 
@@ -59,7 +60,7 @@ export default function CancelPage({ params }: PageProps) {
 			await cancelByToken({ token, reason: reason.trim() || undefined });
 			setCancelled(true);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Erreur inattendue";
+			const msg = errorMessage(err, "Erreur inattendue");
 			toast.error(msg);
 		} finally {
 			setIsCancelling(false);

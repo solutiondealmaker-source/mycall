@@ -4,7 +4,7 @@
 // de l'événement l'emporte sur le texte général, qui l'emporte sur le texte
 // par défaut.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -73,10 +73,10 @@ export const saveTemplate = mutation({
 	handler: async (ctx, args) => {
 		const userId = await requireAdmin(ctx);
 		const subject = args.subject.trim().slice(0, 200);
-		if (!subject) throw new Error("Le sujet est obligatoire.");
-		if (!args.body.trim()) throw new Error("Le message est obligatoire.");
+		if (!subject) throw new ConvexError("Le sujet est obligatoire.");
+		if (!args.body.trim()) throw new ConvexError("Le message est obligatoire.");
 		if (args.eventId && !(await ctx.db.get(args.eventId))) {
-			throw new Error("Événement introuvable.");
+			throw new ConvexError("Événement introuvable.");
 		}
 
 		const patch = {
@@ -168,7 +168,7 @@ export const sendTestTemplate = action({
 			internal.emailCustomization.adminEmailInternal,
 			{},
 		);
-		if (!to) throw new Error("Ton compte n'a pas d'adresse email.");
+		if (!to) throw new ConvexError("Ton compte n'a pas d'adresse email.");
 		const rendered = renderProspectEmail(
 			args.kind,
 			sampleEmailData(SITE_URL),

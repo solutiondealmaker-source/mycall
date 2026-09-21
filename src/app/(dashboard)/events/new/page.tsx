@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../../convex/_generated/api";
 
@@ -98,7 +99,7 @@ export default function NewEventPage() {
 			toast.success("Événement créé !");
 			router.push(`/events/${newId}/edit`);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Erreur inconnue";
+			const msg = errorMessage(err, "Erreur inconnue");
 			if (msg.includes("slug") || msg.includes("duplicate")) {
 				setSlugError("Ce slug est déjà utilisé. Choisis-en un autre.");
 			} else {

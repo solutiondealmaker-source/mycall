@@ -7,7 +7,7 @@
 // événements dont il devient hôte dès la création de son compte, pour ne pas
 // avoir à revenir l'ajouter à la main.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -173,12 +173,13 @@ export const create = mutation({
 		const normalized = normalize(email);
 
 		if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) {
-			throw new Error("Adresse email invalide");
+			throw new ConvexError("Adresse email invalide");
 		}
 
 		const requestedEvents: Id<"events">[] = [];
 		for (const id of new Set(eventIds ?? [])) {
-			if (!(await ctx.db.get(id))) throw new Error("Événement introuvable");
+			if (!(await ctx.db.get(id)))
+				throw new ConvexError("Événement introuvable");
 			requestedEvents.push(id);
 		}
 
@@ -189,7 +190,7 @@ export const create = mutation({
 			.withIndex("email", (q) => q.eq("email", normalized))
 			.first();
 		if (existingUser) {
-			throw new Error(
+			throw new ConvexError(
 				requestedEvents.length > 0
 					? "Cette personne fait déjà partie de l'équipe : ajoute-la directement comme hôte."
 					: "Cette personne fait déjà partie de l'équipe.",
@@ -203,7 +204,7 @@ export const create = mutation({
 			const current = pending.eventIds ?? [];
 			const added = requestedEvents.filter((id) => !current.includes(id));
 			if (added.length === 0) {
-				throw new Error(
+				throw new ConvexError(
 					requestedEvents.length > 0
 						? "Cette personne est déjà invitée sur cet événement."
 						: "Une invitation est déjà en attente pour cette adresse. Révoque-la d'abord pour en changer le rôle.",
@@ -240,9 +241,9 @@ export const revoke = mutation({
 	handler: async (ctx, { invitationId }) => {
 		await requireAdmin(ctx);
 		const inv = await ctx.db.get(invitationId);
-		if (!inv) throw new Error("Invitation introuvable");
+		if (!inv) throw new ConvexError("Invitation introuvable");
 		if (inv.acceptedAt) {
-			throw new Error(
+			throw new ConvexError(
 				"Invitation déjà acceptée. Retire plutôt le membre depuis la liste.",
 			);
 		}
@@ -257,8 +258,8 @@ export const detachEvent = mutation({
 	handler: async (ctx, { invitationId, eventId }) => {
 		await requireAdmin(ctx);
 		const inv = await ctx.db.get(invitationId);
-		if (!inv) throw new Error("Invitation introuvable");
-		if (inv.acceptedAt) throw new Error("Invitation déjà acceptée.");
+		if (!inv) throw new ConvexError("Invitation introuvable");
+		if (inv.acceptedAt) throw new ConvexError("Invitation déjà acceptée.");
 		await ctx.db.patch(invitationId, {
 			eventIds: (inv.eventIds ?? []).filter((id) => id !== eventId),
 		});
@@ -273,9 +274,9 @@ export const resend = mutation({
 	handler: async (ctx, { invitationId }) => {
 		const callerId = await requireAdmin(ctx);
 		const inv = await ctx.db.get(invitationId);
-		if (!inv) throw new Error("Invitation introuvable");
-		if (inv.acceptedAt) throw new Error("Invitation déjà acceptée.");
-		if (inv.revokedAt) throw new Error("Invitation révoquée.");
+		if (!inv) throw new ConvexError("Invitation introuvable");
+		if (inv.acceptedAt) throw new ConvexError("Invitation déjà acceptée.");
+		if (inv.revokedAt) throw new ConvexError("Invitation révoquée.");
 
 		await ctx.db.patch(invitationId, { expiresAt: Date.now() + INVITE_TTL_MS });
 

@@ -14,7 +14,7 @@
 //   Channel lifecycle   → subscribeCalendarWatchForAccount / stopChannelInternal
 //   Crons               → renewExpiringChannels / dailyResyncAllCalendars
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalAction } from "./_generated/server";
@@ -60,7 +60,7 @@ type GoogleWatchResponse = {
 
 function getEnv(name: string): string {
 	const value = process.env[name];
-	if (!value) throw new Error(`Missing env var ${name}`);
+	if (!value) throw new ConvexError(`Missing env var ${name}`);
 	return value;
 }
 
@@ -161,7 +161,7 @@ async function refreshAccountToken(
 		internal.googleAccount.getAccountByIdInternal,
 		{ accountId },
 	);
-	if (!acc) throw new Error("Google non connecté");
+	if (!acc) throw new ConvexError("Google non connecté");
 
 	const clientId = getEnv("GOOGLE_CLIENT_ID");
 	const clientSecret = getEnv("GOOGLE_CLIENT_SECRET");
@@ -187,7 +187,7 @@ async function refreshAccountToken(
 				reason: "invalid_grant",
 			});
 		}
-		throw new Error(`Google refresh failed: ${err}`);
+		throw new ConvexError(`Google refresh failed: ${err}`);
 	}
 	const tok = (await res.json()) as GoogleTokenResponse;
 	const expiry = Date.now() + tok.expires_in * 1000;
@@ -208,7 +208,7 @@ async function getAccessTokenForAccount(
 		internal.googleAccount.getAccountByIdInternal,
 		{ accountId },
 	);
-	if (!acc) throw new Error("Google non connecté");
+	if (!acc) throw new ConvexError("Google non connecté");
 	if (acc.tokenExpiryMs > Date.now() + 60 * 1000) return acc.accessToken;
 	return await refreshAccountToken(ctx, accountId);
 }
@@ -232,7 +232,7 @@ async function listCalendarsWithToken(
 		headers: { Authorization: `Bearer ${accessToken}` },
 	});
 	if (!res.ok)
-		throw new Error(`Google calendarList failed: ${await res.text()}`);
+		throw new ConvexError(`Google calendarList failed: ${await res.text()}`);
 	const data = (await res.json()) as { items?: CalendarEntry[] };
 	return data.items ?? [];
 }
@@ -257,7 +257,7 @@ export const listCalendarsAcrossMyAccounts = action({
 			internal.googleHelpers.getCurrentUserInternal,
 			{},
 		);
-		if (!me) throw new Error("Non authentifié");
+		if (!me) throw new ConvexError("Non authentifié");
 		const accounts = await ctx.runQuery(
 			internal.googleAccount.listAccountsForUserInternal,
 			{
@@ -322,7 +322,7 @@ export const handleOAuthCallback = internalAction({
 
 		if (!tokenRes.ok) {
 			const err = await tokenRes.text();
-			throw new Error(`Google token exchange failed: ${err}`);
+			throw new ConvexError(`Google token exchange failed: ${err}`);
 		}
 
 		const tokens = (await tokenRes.json()) as GoogleTokenResponse;
@@ -331,12 +331,12 @@ export const handleOAuthCallback = internalAction({
 		// G2 — Guard critique : refresh_token absent si l'utilisateur n'a pas accordé
 		// l'accès avec prompt=consent. Erreur explicite.
 		if (!tokens.refresh_token) {
-			throw new Error(
+			throw new ConvexError(
 				"Google n'a pas renvoyé de refresh_token. Révoque l'accès dans ton compte Google puis reconnecte.",
 			);
 		}
 		if (!sub) {
-			throw new Error(
+			throw new ConvexError(
 				"Google n'a pas renvoyé d'identifiant de compte. Merci de réessayer.",
 			);
 		}
@@ -531,7 +531,9 @@ async function createGoogleEventForBooking(
 
 	if (!res.ok) {
 		const body = await res.text();
-		throw new Error(`Google API http ${res.status}: ${body.slice(0, 300)}`);
+		throw new ConvexError(
+			`Google API http ${res.status}: ${body.slice(0, 300)}`,
+		);
 	}
 
 	const data = (await res.json()) as {

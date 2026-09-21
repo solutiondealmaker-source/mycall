@@ -5,7 +5,7 @@
 // ses emails partent alors de son compte, avec ses statistiques et sa
 // réputation d'expéditeur.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
 	action,
@@ -111,11 +111,11 @@ async function verifyKey(
 			headers: { "api-key": apiKey, Accept: "application/json" },
 		});
 		if (res.status === 401 || res.status === 403) {
-			throw new Error(
+			throw new ConvexError(
 				"Clé Brevo refusée : utilise une clé API v3 (Paramètres → SMTP & API → Clés API).",
 			);
 		}
-		if (!res.ok) throw new Error(`Brevo a répondu ${res.status}.`);
+		if (!res.ok) throw new ConvexError(`Brevo a répondu ${res.status}.`);
 		return;
 	}
 	const res = await fetch("https://api.resend.com/domains", {
@@ -135,7 +135,7 @@ async function verifyKey(
 		res.status === 401 ||
 		res.status === 403 ||
 		/api key/i.test(body.message ?? "");
-	throw new Error(
+	throw new ConvexError(
 		refused
 			? "Clé Resend refusée : vérifie qu'elle est complète et active."
 			: `Resend a répondu ${res.status}${body.message ? ` (${body.message})` : ""}.`,
@@ -156,7 +156,7 @@ export const saveEmailProvider = action({
 		);
 		const fromAddress = args.fromAddress.trim().toLowerCase();
 		if (!isValidEmail(fromAddress)) {
-			throw new Error("Adresse d'expédition invalide.");
+			throw new ConvexError("Adresse d'expédition invalide.");
 		}
 
 		// Sans nouvelle clé, on garde celle déjà enregistrée pour ce fournisseur.
@@ -166,7 +166,7 @@ export const saveEmailProvider = action({
 				internal.emailSettings.currentKeyInternal,
 				{ provider: args.provider },
 			);
-			if (!current) throw new Error("Colle la clé API du fournisseur.");
+			if (!current) throw new ConvexError("Colle la clé API du fournisseur.");
 			apiKey = current;
 		}
 		await verifyKey(args.provider, apiKey);
@@ -217,7 +217,7 @@ export const sendTest = action({
 			internal.emailSettings.assertAdminInternal,
 			{},
 		);
-		if (!email) throw new Error("Ton compte n'a pas d'adresse email.");
+		if (!email) throw new ConvexError("Ton compte n'a pas d'adresse email.");
 		const res = await ctx.runAction(internal.emails.sendTestEmail, {
 			to: email,
 		});

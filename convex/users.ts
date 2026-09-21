@@ -1,7 +1,7 @@
 // users.ts — Profile queries/mutations + admin team management.
 // Ne pas modifier auth.ts / schema.ts.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, type QueryCtx, query } from "./_generated/server";
 import { requireAdmin, requireAuth } from "./lib/auth";
 import {
@@ -43,15 +43,15 @@ export const setSenderEmail = mutation({
 	handler: async (ctx, { userId, senderEmail }) => {
 		await requireAdmin(ctx);
 		const target = await ctx.db.get(userId);
-		if (!target) throw new Error("Utilisateur introuvable");
+		if (!target) throw new ConvexError("Utilisateur introuvable");
 
 		const value = senderEmail?.trim().toLowerCase() || null;
 		if (value !== null) {
-			if (!isValidEmail(value)) throw new Error("Adresse email invalide");
+			if (!isValidEmail(value)) throw new ConvexError("Adresse email invalide");
 			const from = await effectiveDefaultFrom(ctx);
 			if (!isOnSenderDomain(value, from)) {
 				const domain = senderDomain(from);
-				throw new Error(
+				throw new ConvexError(
 					domain
 						? `L'adresse doit se terminer par @${domain} : c'est le seul domaine vérifié pour l'envoi.`
 						: "Aucun domaine d'envoi n'est configuré sur cette instance.",
@@ -141,7 +141,7 @@ export const updateUserRole = mutation({
 	handler: async (ctx, { userId, role }) => {
 		await requireAdmin(ctx);
 		const target = await ctx.db.get(userId);
-		if (!target) throw new Error("Utilisateur introuvable");
+		if (!target) throw new ConvexError("Utilisateur introuvable");
 		await ctx.db.patch(userId, { role });
 		return { ok: true };
 	},
@@ -154,13 +154,13 @@ export const toggleAdmin = mutation({
 
 		// Guard: cannot remove your own admin access
 		if (callerId === userId) {
-			throw new Error(
+			throw new ConvexError(
 				"Tu ne peux pas retirer tes propres droits admin. Demande à un autre admin.",
 			);
 		}
 
 		const target = await ctx.db.get(userId);
-		if (!target) throw new Error("Utilisateur introuvable");
+		if (!target) throw new ConvexError("Utilisateur introuvable");
 
 		await ctx.db.patch(userId, { isAdmin: !target.isAdmin });
 		return { ok: true, isAdmin: !target.isAdmin };
@@ -174,11 +174,11 @@ export const removeUser = mutation({
 
 		// Guard: cannot remove yourself
 		if (callerId === userId) {
-			throw new Error("Tu ne peux pas te supprimer toi-même.");
+			throw new ConvexError("Tu ne peux pas te supprimer toi-même.");
 		}
 
 		const target = await ctx.db.get(userId);
-		if (!target) throw new Error("Utilisateur introuvable");
+		if (!target) throw new ConvexError("Utilisateur introuvable");
 
 		// Hard delete the user doc.
 		// Bookings / leads / availability referencing this user will keep their

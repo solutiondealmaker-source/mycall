@@ -7,7 +7,7 @@
 // On génère un *Payment Link* (et non une Checkout Session) : il n'expire pas,
 // ce qui convient à un lien envoyé à un prospect par email ou message.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -65,7 +65,7 @@ export const setStripeKey = mutation({
 		const userId = await requireAdmin(ctx);
 		const key = secretKey.trim();
 		if (!key.startsWith("sk_test_") && !key.startsWith("sk_live_")) {
-			throw new Error(
+			throw new ConvexError(
 				"Clé invalide : une clé secrète Stripe commence par sk_test_ ou sk_live_.",
 			);
 		}
@@ -100,7 +100,7 @@ export const setStripeEnabled = mutation({
 			.query("integrationSettings")
 			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
 			.first();
-		if (!existing) throw new Error("Stripe n'est pas encore configuré.");
+		if (!existing) throw new ConvexError("Stripe n'est pas encore configuré.");
 		await ctx.db.patch(existing._id, {
 			stripeEnabled: enabled,
 			updatedAt: Date.now(),
@@ -135,13 +135,14 @@ export const setWebhookSecret = mutation({
 		const userId = await requireAdmin(ctx);
 		const secret = webhookSecret.trim();
 		if (secret && !secret.startsWith("whsec_")) {
-			throw new Error("Le secret de webhook Stripe commence par whsec_.");
+			throw new ConvexError("Le secret de webhook Stripe commence par whsec_.");
 		}
 		const existing = await ctx.db
 			.query("integrationSettings")
 			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
 			.first();
-		if (!existing) throw new Error("Configure d'abord la clé secrète Stripe.");
+		if (!existing)
+			throw new ConvexError("Configure d'abord la clé secrète Stripe.");
 		await ctx.db.patch(existing._id, {
 			stripeWebhookSecret: secret || undefined,
 			updatedAt: Date.now(),
@@ -333,7 +334,7 @@ async function stripePost(
 	const body = (await res.json()) as Record<string, unknown>;
 	if (!res.ok) {
 		const err = body.error as { message?: string } | undefined;
-		throw new Error(err?.message ?? `Stripe a répondu ${res.status}`);
+		throw new ConvexError(err?.message ?? `Stripe a répondu ${res.status}`);
 	}
 	return body;
 }
@@ -355,14 +356,14 @@ export const createPaymentLink = action({
 			internal.googleHelpers.getCurrentUserInternal,
 			{},
 		);
-		if (!me) throw new Error("Non authentifié");
+		if (!me) throw new ConvexError("Non authentifié");
 
 		// Générer un lien de paiement engage le compte Stripe du business : c'est
 		// une écriture, pas une consultation. L'interface ne propose le bouton
 		// qu'aux admins, mais rien n'empêchait un appel direct — un observateur
 		// inclus, alors que son rôle promet l'inverse.
 		if (me.role === "viewer") {
-			throw new Error("Ton rôle est en lecture seule.");
+			throw new ConvexError("Ton rôle est en lecture seule.");
 		}
 		const privileged =
 			me.isAdmin === true ||
@@ -376,27 +377,27 @@ export const createPaymentLink = action({
 				!lead ||
 				(lead.closerUserId !== me._id && lead.setterUserId !== me._id)
 			) {
-				throw new Error("Ce lead ne t'est pas assigné.");
+				throw new ConvexError("Ce lead ne t'est pas assigné.");
 			}
 		}
 
 		if (!Number.isFinite(amountCents) || amountCents < 100) {
-			throw new Error("Montant invalide (minimum 1 €).");
+			throw new ConvexError("Montant invalide (minimum 1 €).");
 		}
 		if (amountCents > 100_000_00) {
-			throw new Error("Montant trop élevé (maximum 100 000 €).");
+			throw new ConvexError("Montant trop élevé (maximum 100 000 €).");
 		}
 
 		const cfg = await ctx.runQuery(internal.stripe.getSecretKeyInternal, {});
 		if (!cfg) {
-			throw new Error(
+			throw new ConvexError(
 				"Stripe n'est pas configuré ou est désactivé (Paramètres → Intégrations).",
 			);
 		}
 
 		const n = Math.round(installments ?? 1);
 		if (!Number.isFinite(n) || n < 1 || n > 12) {
-			throw new Error(
+			throw new ConvexError(
 				"Le nombre de mensualités doit être compris entre 1 et 12.",
 			);
 		}
@@ -438,7 +439,7 @@ export const createPaymentLink = action({
 		});
 
 		const url = String(link.url ?? "");
-		if (!url) throw new Error("Stripe n'a pas renvoyé de lien.");
+		if (!url) throw new ConvexError("Stripe n'a pas renvoyé de lien.");
 
 		await ctx.runMutation(internal.stripe.logPaymentLinkInternal, {
 			leadId,

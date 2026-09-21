@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 // ─── Color palette ────────────────────────────────────────────────────────────
@@ -149,7 +150,7 @@ export default function CataloguesPage() {
 			await createLossReason({ name: label, label, color });
 			toast.success("Raison ajoutée");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		}
 	}
 
@@ -160,7 +161,7 @@ export default function CataloguesPage() {
 			setEditingLoss(null);
 			toast.success("Mis à jour");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		}
 	}
 
@@ -169,7 +170,7 @@ export default function CataloguesPage() {
 			const result = await archiveLossReason({ id });
 			toast.success(result.archived ? "Archivé" : "Restauré");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		}
 	}
 
@@ -180,7 +181,7 @@ export default function CataloguesPage() {
 			await createLeadSource({ name, color });
 			toast.success("Source ajoutée");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		}
 	}
 
@@ -190,7 +191,7 @@ export default function CataloguesPage() {
 			await deleteLeadSource({ id });
 			toast.success("Source supprimée");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		}
 	}
 

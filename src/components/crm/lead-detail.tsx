@@ -38,6 +38,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { errorMessage } from "@/lib/errors";
 import { canAdminister } from "@/lib/roles";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
@@ -105,7 +106,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 			setPayUrl(res.url);
 			toast.success("Lien de paiement généré");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Génération impossible");
+			toast.error(errorMessage(err, "Génération impossible"));
 		} finally {
 			setPayLoading(false);
 		}
@@ -125,9 +126,7 @@ export function LeadDetail({ leadId }: LeadDetailProps) {
 			);
 			router.push("/crm");
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Suppression impossible",
-			);
+			toast.error(errorMessage(err, "Suppression impossible"));
 			setDeleting(false);
 		}
 	}
@@ -767,9 +766,7 @@ function RelancesTab({ leadId }: { leadId: Id<"leads"> }) {
 												await complete({ followUpId: f._id });
 												toast.success("Relance marquée faite");
 											} catch (err) {
-												toast.error(
-													err instanceof Error ? err.message : "Erreur",
-												);
+												toast.error(errorMessage(err, "Erreur"));
 											}
 										}}
 									>
@@ -784,9 +781,7 @@ function RelancesTab({ leadId }: { leadId: Id<"leads"> }) {
 												await cancel({ followUpId: f._id });
 												toast.success("Relance annulée");
 											} catch (err) {
-												toast.error(
-													err instanceof Error ? err.message : "Erreur",
-												);
+												toast.error(errorMessage(err, "Erreur"));
 											}
 										}}
 									>

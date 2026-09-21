@@ -32,6 +32,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import type { EventDoc, EventHost, EventPatch } from "@/types/events";
 
@@ -112,7 +113,7 @@ export function HostsSection({
 				await detachInvite({ invitationId, eventId });
 				toast.success(`${email} ne sera plus hôte de cet événement`);
 			} catch (err) {
-				toast.error(err instanceof Error ? err.message : "Erreur");
+				toast.error(errorMessage(err, "Erreur"));
 			}
 		},
 		[detachInvite, eventId],

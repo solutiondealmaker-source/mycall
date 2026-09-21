@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { api } from "@/../convex/_generated/api";
 import type { Id } from "@/../convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
+import { errorMessage } from "@/lib/errors";
 import { roleLabel } from "@/lib/roles";
 
 function fmtDate(ms: number): string {
@@ -33,7 +34,7 @@ export function PendingInvitations() {
 			await revoke({ invitationId: id });
 			toast.success("Invitation annulée");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setPending(null);
 		}
@@ -45,7 +46,7 @@ export function PendingInvitations() {
 			await resend({ invitationId: id });
 			toast.success(`Invitation renvoyée à ${email}`);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setPending(null);
 		}

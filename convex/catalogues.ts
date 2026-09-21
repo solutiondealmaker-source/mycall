@@ -1,7 +1,7 @@
 // catalogues.ts — CRUD pour lossReasons et leadSources.
 // Les deux tables sont des référentiels partagés, modifiables uniquement par les admins.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireAuth } from "./lib/auth";
 
@@ -57,7 +57,7 @@ export const updateLossReason = mutation({
 	handler: async (ctx, { id, label, color, archived }) => {
 		await requireAdmin(ctx);
 		const row = await ctx.db.get(id);
-		if (!row) throw new Error("Raison introuvable");
+		if (!row) throw new ConvexError("Raison introuvable");
 
 		const patch: Record<string, unknown> = {};
 		if (label !== undefined) patch.label = label.trim();
@@ -74,7 +74,7 @@ export const archiveLossReason = mutation({
 	handler: async (ctx, { id }) => {
 		await requireAdmin(ctx);
 		const row = await ctx.db.get(id);
-		if (!row) throw new Error("Raison introuvable");
+		if (!row) throw new ConvexError("Raison introuvable");
 		await ctx.db.patch(id, { archived: !row.archived });
 		return { ok: true, archived: !row.archived };
 	},
@@ -105,7 +105,7 @@ export const createLeadSource = mutation({
 			.query("leadSources")
 			.withIndex("by_name", (q) => q.eq("name", name.trim()))
 			.first();
-		if (existing) throw new Error("Une source avec ce nom existe déjà");
+		if (existing) throw new ConvexError("Une source avec ce nom existe déjà");
 
 		return await ctx.db.insert("leadSources", {
 			name: name.trim(),
@@ -124,7 +124,7 @@ export const updateLeadSource = mutation({
 	handler: async (ctx, { id, name, color }) => {
 		await requireAdmin(ctx);
 		const row = await ctx.db.get(id);
-		if (!row) throw new Error("Source introuvable");
+		if (!row) throw new ConvexError("Source introuvable");
 
 		const patch: Record<string, unknown> = {};
 		if (name !== undefined) patch.name = name.trim();
@@ -140,7 +140,7 @@ export const deleteLeadSource = mutation({
 	handler: async (ctx, { id }) => {
 		await requireAdmin(ctx);
 		const row = await ctx.db.get(id);
-		if (!row) throw new Error("Source introuvable");
+		if (!row) throw new ConvexError("Source introuvable");
 		await ctx.db.delete(id);
 		return { ok: true };
 	},

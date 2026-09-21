@@ -3,7 +3,7 @@
 // Le logo est stocké dans Convex et servi par son adresse publique : les
 // clients mail chargent l'image à l'ouverture, sans pièce jointe.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
 	internalQuery,
@@ -97,16 +97,16 @@ export const setLogo = mutation({
 	handler: async (ctx, { storageId }) => {
 		const userId = await requireAdmin(ctx);
 		const file = await ctx.db.system.get(storageId);
-		if (!file) throw new Error("Fichier introuvable.");
+		if (!file) throw new ConvexError("Fichier introuvable.");
 		if (!LOGO_TYPES.includes(file.contentType ?? "")) {
 			await ctx.storage.delete(storageId);
-			throw new Error(
+			throw new ConvexError(
 				"Format non pris en charge : utilise un PNG, JPG, GIF ou WebP (le SVG ne s'affiche pas dans Gmail ni Outlook).",
 			);
 		}
 		if (file.size > LOGO_MAX_BYTES) {
 			await ctx.storage.delete(storageId);
-			throw new Error("Logo trop lourd : 1 Mo maximum.");
+			throw new ConvexError("Logo trop lourd : 1 Mo maximum.");
 		}
 		const previous = await patchSettings(ctx, userId, {
 			emailLogoStorageId: storageId,
@@ -147,10 +147,12 @@ export const saveBranding = mutation({
 		if (color?.trim()) {
 			const hex = normalizeHex(color);
 			if (!hex)
-				throw new Error("Couleur invalide : utilise un code comme #1E3A5F.");
+				throw new ConvexError(
+					"Couleur invalide : utilise un code comme #1E3A5F.",
+				);
 			const contrast = contrastWithWhite(hex) ?? 0;
 			if (contrast < 3) {
-				throw new Error(
+				throw new ConvexError(
 					"Couleur trop claire : le texte blanc des boutons deviendrait illisible. Choisis une teinte plus foncée.",
 				);
 			}

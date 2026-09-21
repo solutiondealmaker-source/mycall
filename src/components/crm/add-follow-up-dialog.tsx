@@ -26,6 +26,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 
 type Channel = "call" | "sms" | "email" | "other";
 
@@ -78,7 +79,7 @@ export function AddFollowUpDialog({ leadId }: { leadId: Id<"leads"> }) {
 			setNote("");
 			setOpen(false);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setSubmitting(false);
 		}

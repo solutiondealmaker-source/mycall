@@ -11,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -134,7 +135,7 @@ export function OutcomeModal({
 			onOpenChange(false);
 			resetState();
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+			toast.error(errorMessage(err, "Erreur inconnue"));
 		} finally {
 			setSaving(false);
 		}

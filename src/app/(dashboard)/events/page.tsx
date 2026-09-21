@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { errorMessage } from "@/lib/errors";
 import { cn, publicBookingUrl } from "@/lib/utils";
 import type { EventDoc } from "@/types/events";
 
@@ -92,7 +93,7 @@ export default function EventsPage() {
 			});
 			toast.success(`Événement ${current ? "désactivé" : "activé"}`);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Erreur inconnue";
+			const msg = errorMessage(err, "Erreur inconnue");
 			toast.error("Impossible de modifier l'événement", { description: msg });
 		}
 	};
@@ -111,7 +112,7 @@ export default function EventsPage() {
 			});
 			router.push(`/events/${newId}/edit`);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Erreur inconnue";
+			const msg = errorMessage(err, "Erreur inconnue");
 			toast.error("Impossible de dupliquer", { description: msg });
 		}
 	};
@@ -121,7 +122,7 @@ export default function EventsPage() {
 			await archiveEvent({ id: id as Id<"events"> });
 			toast.success(`"${name}" archivé`);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Erreur inconnue";
+			const msg = errorMessage(err, "Erreur inconnue");
 			toast.error("Impossible d'archiver", { description: msg });
 		}
 	};

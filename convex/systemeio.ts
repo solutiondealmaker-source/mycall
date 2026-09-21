@@ -5,7 +5,7 @@
 // prospect comme contact et lui pose un tag à chaque étape (nouveau lead, RDV
 // réservé, absent, gagné…). Le client branche ses campagnes sur ces tags.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
 	action,
@@ -176,7 +176,7 @@ export const connect = action({
 		);
 		const key = apiKey.trim();
 		if (key.length < 20)
-			throw new Error("Cette clé systeme.io semble incomplète.");
+			throw new ConvexError("Cette clé systeme.io semble incomplète.");
 		// Lecture minimale pour valider la clé avant de l'enregistrer.
 		await call(key, "GET", "/contacts?limit=10");
 		await ctx.runMutation(internal.systemeio.saveInternal, {
@@ -197,7 +197,7 @@ export const updatePrefix = mutation({
 			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
 			.first();
 		if (!existing?.systemeioApiKey)
-			throw new Error("systeme.io n'est pas connecté.");
+			throw new ConvexError("systeme.io n'est pas connecté.");
 		await ctx.db.patch(existing._id, {
 			systemeioTagPrefix: tagPrefix.trim(),
 			updatedAt: Date.now(),

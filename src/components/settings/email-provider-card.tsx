@@ -9,6 +9,7 @@ import { api } from "@/../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 type Provider = "resend" | "brevo";
@@ -33,8 +34,7 @@ const PROVIDERS: Record<
 };
 
 export function errorText(err: unknown): string {
-	const msg = err instanceof Error ? err.message : "Erreur";
-	return /Uncaught Error: ([^\n]+)/.exec(msg)?.[1] ?? msg;
+	return errorMessage(err, "Erreur");
 }
 
 export function EmailProviderCard() {

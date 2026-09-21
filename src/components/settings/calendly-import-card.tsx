@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 
 type EventTypeRow = {
 	uri: string;
@@ -27,12 +28,7 @@ type EventTypeRow = {
 	alreadyImported: boolean;
 };
 
-function errorText(err: unknown): string {
-	// Convex préfixe les erreurs serveur ; on ne garde que le message utile.
-	const msg = err instanceof Error ? err.message : "Erreur";
-	const m = /Uncaught Error: ([^\n]+)/.exec(msg);
-	return m ? m[1] : msg;
-}
+const errorText = (err: unknown) => errorMessage(err, "Erreur");
 
 function fmt(ms: number): string {
 	return new Intl.DateTimeFormat("fr-FR", {

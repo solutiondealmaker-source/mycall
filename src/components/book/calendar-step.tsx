@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SafeHtml } from "@/components/ui/safe-html";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import type { BookingResult, BookSessionData } from "@/types/book";
 import type {
@@ -228,7 +229,7 @@ export function CalendarStep({
 			}
 			onSuccess(result as unknown as BookingResult);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur inattendue");
+			toast.error(errorMessage(err, "Erreur inattendue"));
 			setSelectedSlot(null);
 			setIsConfirming(false);
 		}

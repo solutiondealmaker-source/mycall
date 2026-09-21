@@ -10,7 +10,7 @@
 // plus). Sans correspondance, il reste en attente dans Intégrations, où on
 // peut le rattacher à la main.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -471,9 +471,9 @@ export const connect = action({
 		const adminId = await ctx.runQuery(internal.fathom.assertAdminInternal, {});
 		const apiKey = args.apiKey.trim();
 		if (apiKey.length < 16)
-			throw new Error("Cette clé Fathom semble incomplète.");
+			throw new ConvexError("Cette clé Fathom semble incomplète.");
 		const siteUrl = process.env.CONVEX_SITE_URL;
-		if (!siteUrl) throw new Error("Adresse de l'instance introuvable.");
+		if (!siteUrl) throw new ConvexError("Adresse de l'instance introuvable.");
 
 		// Lecture minimale pour valider la clé avant de l'enregistrer.
 		await fathom(
@@ -528,7 +528,7 @@ export const connect = action({
 			await ctx.runMutation(internal.fathom.deleteConnectionInternal, {
 				connectionId,
 			});
-			throw new Error(
+			throw new ConvexError(
 				`Impossible de créer le webhook chez Fathom : ${err instanceof Error ? err.message : String(err)}`,
 			);
 		}
@@ -602,7 +602,7 @@ export const importRecent = action({
 		const c = await ctx.runQuery(internal.fathom.getConnectionInternal, {
 			connectionId,
 		});
-		if (!c) throw new Error("Connexion introuvable.");
+		if (!c) throw new ConvexError("Connexion introuvable.");
 
 		const since = new Date(
 			Date.now() - Math.min(Math.max(days ?? 30, 1), 365) * 86_400_000,
@@ -649,7 +649,8 @@ export const receiveInternal = internalAction({
 				meeting?: FathomMeeting;
 			};
 			const rec = normalizeMeeting(parsed.meeting ?? parsed);
-			if (!rec) throw new Error("Contenu de webhook sans enregistrement.");
+			if (!rec)
+				throw new ConvexError("Contenu de webhook sans enregistrement.");
 			await ctx.runMutation(internal.fathom.ingestInternal, {
 				connectionId,
 				recording: rec,
@@ -736,8 +737,8 @@ export const attachManually = mutation({
 	handler: async (ctx, { recordingId, email }) => {
 		const adminId = await requireAdmin(ctx);
 		const rec = await ctx.db.get(recordingId);
-		if (!rec) throw new Error("Enregistrement introuvable.");
-		if (rec.leadId) throw new Error("Cet appel est déjà rattaché.");
+		if (!rec) throw new ConvexError("Enregistrement introuvable.");
+		if (rec.leadId) throw new ConvexError("Cet appel est déjà rattaché.");
 		const norm = normalizeEmail(email);
 		const lead = norm
 			? await ctx.db
@@ -745,7 +746,7 @@ export const attachManually = mutation({
 					.withIndex("by_emailNormalized", (q) => q.eq("emailNormalized", norm))
 					.first()
 			: null;
-		if (!lead) throw new Error(`Aucun lead avec l'email ${email}.`);
+		if (!lead) throw new ConvexError(`Aucun lead avec l'email ${email}.`);
 
 		let bookingId: Id<"bookings"> | undefined;
 		if (rec.startedAt !== undefined) {

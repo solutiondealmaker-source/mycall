@@ -11,6 +11,7 @@
 
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
@@ -50,7 +51,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 				: null;
 
 			if (allowlist.size === 0 && !invitation) {
-				throw new Error(
+				throw new ConvexError(
 					"Inscription désactivée : aucune invitation en attente et SIGNUP_ALLOWED_EMAILS n'est pas défini sur le déploiement.",
 				);
 			}
@@ -58,7 +59,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 				!normalizedEmail ||
 				(!allowlist.has(normalizedEmail) && !invitation)
 			) {
-				throw new Error("Cette adresse n'est pas autorisée à créer un compte.");
+				throw new ConvexError(
+					"Cette adresse n'est pas autorisée à créer un compte.",
+				);
 			}
 
 			// Premier user autorisé de ce déploiement = admin/owner.

@@ -9,7 +9,7 @@
 // inactifs, et les leads sont écrits directement, sans passer par la prise de
 // rendez-vous ni par les séquences.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -344,7 +344,7 @@ export const connect = action({
 		);
 		const clean = token.trim();
 		if (clean.length < 20)
-			throw new Error("Ce jeton Calendly semble incomplet.");
+			throw new ConvexError("Ce jeton Calendly semble incomplet.");
 
 		const me = await calendlyGet<{
 			resource: {
@@ -419,7 +419,7 @@ export const listEventTypes = action({
 			internal.calendly.getCredentialsInternal,
 			{},
 		);
-		if (!creds) throw new Error("Calendly n'est pas connecté.");
+		if (!creds) throw new ConvexError("Calendly n'est pas connecté.");
 
 		const types = await listAllEventTypes(creds.token, creds);
 		const imported = new Set(
@@ -646,7 +646,7 @@ export const importEventTypes = action({
 			internal.calendly.getCredentialsInternal,
 			{},
 		);
-		if (!creds) throw new Error("Calendly n'est pas connecté.");
+		if (!creds) throw new ConvexError("Calendly n'est pas connecté.");
 
 		const result = {
 			created: [] as string[],
@@ -715,7 +715,7 @@ export const startHistoryImport = mutation({
 		const userId = await requireAdmin(ctx);
 		const settings = await getSettingsRow(ctx);
 		if (!settings?.calendlyToken)
-			throw new Error("Calendly n'est pas connecté.");
+			throw new ConvexError("Calendly n'est pas connecté.");
 
 		const running = await ctx.db
 			.query("calendlyImportJobs")
@@ -724,7 +724,7 @@ export const startHistoryImport = mutation({
 			.first();
 		if (running?.status === "running") {
 			if (Date.now() - running.startedAt < STALE_JOB_MS) {
-				throw new Error("Un import est déjà en cours.");
+				throw new ConvexError("Un import est déjà en cours.");
 			}
 			await ctx.db.patch(running._id, {
 				status: "failed",
@@ -786,7 +786,7 @@ export const runHistoryPage = internalAction({
 				{},
 			);
 			if (!creds)
-				throw new Error("Calendly a été déconnecté pendant l'import.");
+				throw new ConvexError("Calendly a été déconnecté pendant l'import.");
 
 			const url =
 				pageUrl ??

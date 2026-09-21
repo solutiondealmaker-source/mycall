@@ -1,7 +1,7 @@
 // Events — CRUD + questions + hosts management.
 // All write mutations require admin auth (Better Auth via lib/auth.ts).
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireAdmin, requireAuth, requireReadAll } from "./lib/auth";
@@ -143,7 +143,7 @@ export const create = mutation({
 			.query("events")
 			.withIndex("by_slug", (q) => q.eq("slug", args.slug))
 			.first();
-		if (existing) throw new Error(`Slug "${args.slug}" déjà utilisé`);
+		if (existing) throw new ConvexError(`Slug "${args.slug}" déjà utilisé`);
 
 		const id = await ctx.db.insert("events", {
 			...args,
@@ -205,7 +205,7 @@ export const update = mutation({
 	handler: async (ctx, { id, ...patch }) => {
 		await requireAdmin(ctx);
 		const event = await ctx.db.get(id);
-		if (!event) throw new Error("Événement introuvable");
+		if (!event) throw new ConvexError("Événement introuvable");
 
 		// Slug uniqueness check on change
 		if (patch.slug && patch.slug !== event.slug) {
@@ -213,7 +213,7 @@ export const update = mutation({
 				.query("events")
 				.withIndex("by_slug", (q) => q.eq("slug", patch.slug as string))
 				.first();
-			if (conflict) throw new Error(`Slug "${patch.slug}" déjà utilisé`);
+			if (conflict) throw new ConvexError(`Slug "${patch.slug}" déjà utilisé`);
 		}
 
 		// Only include defined fields in the patch to avoid overwriting with undefined
@@ -232,7 +232,7 @@ export const archive = mutation({
 	handler: async (ctx, { id }) => {
 		await requireAdmin(ctx);
 		const event = await ctx.db.get(id);
-		if (!event) throw new Error("Événement introuvable");
+		if (!event) throw new ConvexError("Événement introuvable");
 		await ctx.db.patch(id, { isActive: false });
 		return id;
 	},
@@ -251,7 +251,7 @@ export const duplicate = mutation({
 		await requireAdmin(ctx);
 
 		const event = await ctx.db.get(id);
-		if (!event) throw new Error("Événement introuvable");
+		if (!event) throw new ConvexError("Événement introuvable");
 
 		const slugTaken = async (slug: string) =>
 			(await ctx.db
@@ -261,7 +261,8 @@ export const duplicate = mutation({
 
 		let slug = newSlug?.trim();
 		if (slug) {
-			if (await slugTaken(slug)) throw new Error(`Slug "${slug}" déjà utilisé`);
+			if (await slugTaken(slug))
+				throw new ConvexError(`Slug "${slug}" déjà utilisé`);
 		} else {
 			const base = `${event.slug}-copie`;
 			slug = base;
@@ -333,7 +334,7 @@ export const addHost = mutation({
 				q.eq("eventId", args.eventId).eq("userId", args.userId),
 			)
 			.first();
-		if (existing) throw new Error("Host déjà assigné à cet événement");
+		if (existing) throw new ConvexError("Host déjà assigné à cet événement");
 
 		return await ctx.db.insert("eventHosts", {
 			eventId: args.eventId,
@@ -349,7 +350,7 @@ export const removeHost = mutation({
 	handler: async (ctx, { eventHostId }) => {
 		await requireAdmin(ctx);
 		const h = await ctx.db.get(eventHostId);
-		if (!h) throw new Error("Host introuvable");
+		if (!h) throw new ConvexError("Host introuvable");
 		await ctx.db.delete(eventHostId);
 	},
 });
@@ -362,7 +363,7 @@ export const updateHostPriority = mutation({
 	handler: async (ctx, { eventHostId, priority }) => {
 		await requireAdmin(ctx);
 		const h = await ctx.db.get(eventHostId);
-		if (!h) throw new Error("Host introuvable");
+		if (!h) throw new ConvexError("Host introuvable");
 		await ctx.db.patch(eventHostId, { priority });
 		return eventHostId;
 	},
@@ -456,7 +457,7 @@ export const setQuestions = mutation({
 	handler: async (ctx, { eventId, questions }) => {
 		await requireAdmin(ctx);
 		const event = await ctx.db.get(eventId);
-		if (!event) throw new Error("Événement introuvable");
+		if (!event) throw new ConvexError("Événement introuvable");
 
 		// Delete existing questions
 		const existing = await ctx.db

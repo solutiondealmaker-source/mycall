@@ -7,7 +7,7 @@
 // Une row par user (singleton). Créée automatiquement à la première connexion.
 
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -45,7 +45,7 @@ async function getOrCreateSettings(
 		updatedAt: now,
 	});
 	const row = await ctx.db.get(id);
-	if (!row) throw new Error("Failed to create userCalendarSettings");
+	if (!row) throw new ConvexError("Failed to create userCalendarSettings");
 	return row;
 }
 
@@ -97,10 +97,10 @@ export const setWriter = mutation({
 	},
 	handler: async (ctx, { accountId, calendarId, calendarSummary }) => {
 		const userId = await getAuthUserId(ctx);
-		if (!userId) throw new Error("Non authentifié");
+		if (!userId) throw new ConvexError("Non authentifié");
 		const acc = await ctx.db.get(accountId);
 		if (!acc || acc.userId !== userId)
-			throw new Error("Compte Google introuvable");
+			throw new ConvexError("Compte Google introuvable");
 
 		const settings = await getOrCreateSettings(ctx, userId);
 		await ctx.db.patch(settings._id, {
@@ -137,11 +137,11 @@ export const setConflictCalendars = mutation({
 	},
 	handler: async (ctx, { calendars }) => {
 		const userId = await getAuthUserId(ctx);
-		if (!userId) throw new Error("Non authentifié");
+		if (!userId) throw new ConvexError("Non authentifié");
 		for (const c of calendars) {
 			const acc = await ctx.db.get(c.accountId);
 			if (!acc || acc.userId !== userId)
-				throw new Error("Compte Google invalide");
+				throw new ConvexError("Compte Google invalide");
 		}
 		const settings = await getOrCreateSettings(ctx, userId);
 		const previous = new Set(

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 import { canAdminister } from "@/lib/roles";
 
 // Les libellés disent ce qui déclenche, et depuis quand court le délai — c'est
@@ -125,7 +126,7 @@ export default function SequencesPage() {
 			await fn();
 			toast.success(ok);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setBusy(null);
 		}

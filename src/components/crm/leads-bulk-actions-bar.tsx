@@ -16,6 +16,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { errorMessage } from "@/lib/errors";
 import { canAdminister } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
@@ -105,9 +106,7 @@ export function LeadsBulkActionsBar({
 			setAssignOpen(false);
 			onClearSelection();
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Assignation impossible",
-			);
+			toast.error(errorMessage(err, "Assignation impossible"));
 		} finally {
 			setAssigning(false);
 		}
@@ -129,9 +128,7 @@ export function LeadsBulkActionsBar({
 			setConfirmOpen(false);
 			onClearSelection();
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Suppression impossible",
-			);
+			toast.error(errorMessage(err, "Suppression impossible"));
 		} finally {
 			setDeleting(false);
 		}

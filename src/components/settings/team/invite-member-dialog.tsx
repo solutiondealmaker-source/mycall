@@ -26,6 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 import { INVITABLE_ROLES, type RoleValue } from "@/lib/roles";
 
 // Rôles qui reçoivent des rendez-vous : on leur propose de choisir des
@@ -89,7 +90,7 @@ export function InviteMemberDialog({
 			reset();
 			setOpen(false);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setSubmitting(false);
 		}

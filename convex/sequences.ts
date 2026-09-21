@@ -15,7 +15,7 @@
 // quelqu'un qui a déjà signé, ou qui s'est désabonné, coûte plus cher que de
 // n'avoir rien envoyé.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -133,7 +133,7 @@ export const updateSequence = mutation({
 	handler: async (ctx, { sequenceId, name, trigger, isActive, stopOnWon }) => {
 		await requireAdmin(ctx);
 		const seq = await ctx.db.get(sequenceId);
-		if (!seq) throw new Error("Séquence introuvable");
+		if (!seq) throw new ConvexError("Séquence introuvable");
 
 		if (isActive === true) {
 			const steps = await ctx.db
@@ -141,7 +141,7 @@ export const updateSequence = mutation({
 				.withIndex("by_sequence", (q) => q.eq("sequenceId", sequenceId))
 				.collect();
 			if (steps.length === 0) {
-				throw new Error("Ajoute au moins une étape avant d'activer.");
+				throw new ConvexError("Ajoute au moins une étape avant d'activer.");
 			}
 		}
 
@@ -202,8 +202,9 @@ export const upsertStep = mutation({
 			subject: args.subject.trim().slice(0, 200),
 			body: args.body.slice(0, 20_000),
 		};
-		if (!patch.subject) throw new Error("Le sujet est obligatoire.");
-		if (!patch.body.trim()) throw new Error("Le message est obligatoire.");
+		if (!patch.subject) throw new ConvexError("Le sujet est obligatoire.");
+		if (!patch.body.trim())
+			throw new ConvexError("Le message est obligatoire.");
 
 		if (args.stepId) {
 			await ctx.db.patch(args.stepId, patch);
@@ -292,7 +293,9 @@ export const enrollLead = mutation({
 				opted_out: "Ce lead s'est désabonné des emails.",
 				already_enrolled: "Ce lead suit déjà cette séquence.",
 			};
-			throw new Error(messages[res.reason ?? ""] ?? "Inscription impossible.");
+			throw new ConvexError(
+				messages[res.reason ?? ""] ?? "Inscription impossible.",
+			);
 		}
 		return { ok: true };
 	},

@@ -13,6 +13,7 @@ import {
 import { use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../../../convex/_generated/api";
 
@@ -118,7 +119,7 @@ export default function ReschedulePage({ params }: PageProps) {
 			});
 			setDone(true);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur inattendue");
+			toast.error(errorMessage(err, "Erreur inattendue"));
 			setSelectedSlot(null);
 		} finally {
 			setIsConfirming(false);

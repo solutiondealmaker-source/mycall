@@ -6,6 +6,7 @@ import { CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ export function SectionShell({
 			// Flash vert pendant 2s
 			saveSuccessTimer.current = setTimeout(() => setSaveSuccess(false), 2000);
 		} catch (err) {
-			const message = err instanceof Error ? err.message : "Erreur inconnue";
+			const message = errorMessage(err, "Erreur inconnue");
 			toast.error("Impossible d'enregistrer", {
 				description: message,
 				duration: 6000,

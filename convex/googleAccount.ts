@@ -9,7 +9,7 @@
 //   disconnectAccount    mutation → supprime un compte (cleanup channels + busy blocks)
 
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
@@ -201,10 +201,10 @@ export const disconnectAccount = mutation({
 	args: { accountId: v.id("userGoogleAccounts") },
 	handler: async (ctx, { accountId }) => {
 		const userId = await getAuthUserId(ctx);
-		if (!userId) throw new Error("Non authentifié");
+		if (!userId) throw new ConvexError("Non authentifié");
 		const acc = await ctx.db.get(accountId);
 		if (!acc || acc.userId !== userId)
-			throw new Error("Compte Google introuvable");
+			throw new ConvexError("Compte Google introuvable");
 		// Le cleanup complet se fait dans l'action (Node runtime requis pour Google API).
 		await ctx.scheduler.runAfter(
 			0,

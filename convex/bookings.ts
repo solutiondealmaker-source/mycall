@@ -15,7 +15,7 @@
 //   rendez-vous est enregistré quand même — un agenda absent ne doit jamais
 //   faire perdre une réservation.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -1241,12 +1241,12 @@ export const finalizeBookingInternal = internalMutation({
 	},
 	handler: async (ctx, args) => {
 		const booking = await ctx.db.get(args.bookingId);
-		if (!booking) throw new Error("Réservation introuvable");
+		if (!booking) throw new ConvexError("Réservation introuvable");
 		// Idempotent — safe to call multiple times
 		if (booking.googleSyncStatus === "synced") return;
 
 		const event = await ctx.db.get(booking.eventId);
-		if (!event) throw new Error("Événement introuvable");
+		if (!event) throw new ConvexError("Événement introuvable");
 
 		const now = Date.now();
 		await ctx.db.patch(args.bookingId, {
@@ -1318,7 +1318,7 @@ export const cancelByToken = mutation({
 			.query("bookings")
 			.withIndex("by_cancelToken", (q) => q.eq("cancelToken", token))
 			.first();
-		if (!booking) throw new Error("Lien invalide");
+		if (!booking) throw new ConvexError("Lien invalide");
 		if (booking.status === "cancelled") return { ok: true };
 
 		const now = Date.now();
@@ -1380,19 +1380,21 @@ export const rescheduleByToken = mutation({
 			.query("bookings")
 			.withIndex("by_rescheduleToken", (q) => q.eq("rescheduleToken", token))
 			.first();
-		if (!booking) throw new Error("Lien invalide");
-		if (booking.status === "cancelled") throw new Error("Réservation annulée");
+		if (!booking) throw new ConvexError("Lien invalide");
+		if (booking.status === "cancelled")
+			throw new ConvexError("Réservation annulée");
 
 		const event = await ctx.db.get(booking.eventId);
-		if (!event || !event.isActive) throw new Error("Événement indisponible");
+		if (!event || !event.isActive)
+			throw new ConvexError("Événement indisponible");
 		if (!event.allowReschedule)
-			throw new Error("Reschedule désactivé sur cet événement");
+			throw new ConvexError("Reschedule désactivé sur cet événement");
 
 		const newEnd = newStartTime + event.durationMinutes * MS_PER_MIN;
 		const previousStartTime = booking.startTime;
 
 		const guards = validateSlotGuards(event, newStartTime, "reschedule");
-		if (!guards.ok) throw new Error(guards.reason);
+		if (!guards.ok) throw new ConvexError(guards.reason);
 
 		const preferredHostId =
 			event.rescheduleWithSameHost !== false ? booking.hostId : undefined;
@@ -1404,7 +1406,7 @@ export const rescheduleByToken = mutation({
 			excludeBookingId: booking._id,
 			preferredHostId,
 		});
-		if (!resolved.ok) throw new Error(resolved.reason);
+		if (!resolved.ok) throw new ConvexError(resolved.reason);
 
 		const hostChanged = resolved.hostId !== booking.hostId;
 		const now = Date.now();
@@ -1512,9 +1514,9 @@ export const setOutcome = mutation({
 	handler: async (ctx, args) => {
 		const caller = await getAuthenticatedUser(ctx);
 		const booking = await ctx.db.get(args.bookingId);
-		if (!booking) throw new Error("Booking introuvable");
+		if (!booking) throw new ConvexError("Booking introuvable");
 		if (!booking.leadId)
-			throw new Error("Ce booking n'est pas relié à une fiche lead");
+			throw new ConvexError("Ce booking n'est pas relié à une fiche lead");
 
 		// Authorization: host, lead closer/setter, or admin
 		const isPrivileged = isAdminUser(caller);
@@ -1526,36 +1528,40 @@ export const setOutcome = mutation({
 				lead?.closerUserId === caller._id || lead?.setterUserId === caller._id;
 		}
 		if (!isPrivileged && !isHost && !isLeadOwner) {
-			throw new Error("Tu n'as pas accès à ce booking");
+			throw new ConvexError("Tu n'as pas accès à ce booking");
 		}
 
 		// Validation rules (mirror DG COACHING bookingOutcomes.ts)
 		if (args.tenue === "tenu" && !args.issue) {
-			throw new Error("Un appel tenu doit avoir une issue");
+			throw new ConvexError("Un appel tenu doit avoir une issue");
 		}
 		if (args.tenue !== "tenu" && args.issue && args.issue !== "en_attente") {
-			throw new Error("L'issue n'est valide que pour un appel tenu");
+			throw new ConvexError("L'issue n'est valide que pour un appel tenu");
 		}
 		if (args.issue === "perdu" && !args.issueLossReasonId) {
-			throw new Error("Une raison de perte est requise");
+			throw new ConvexError("Une raison de perte est requise");
 		}
 		if (args.issue === "gagne") {
 			if (
 				typeof args.issueAmountCents !== "number" ||
 				args.issueAmountCents <= 0
 			) {
-				throw new Error("Un montant contracté > 0 est requis pour une vente");
+				throw new ConvexError(
+					"Un montant contracté > 0 est requis pour une vente",
+				);
 			}
 		}
 		if (args.issue === "follow_up") {
 			if (!args.followUp) {
-				throw new Error("Une relance (date + raison + canal) est requise");
+				throw new ConvexError(
+					"Une relance (date + raison + canal) est requise",
+				);
 			}
 			if (args.followUp.dueAt < Date.now() - 60_000) {
-				throw new Error("La date de relance doit être dans le futur");
+				throw new ConvexError("La date de relance doit être dans le futur");
 			}
 			if (!args.followUp.reason.trim()) {
-				throw new Error("Une raison de relance est requise");
+				throw new ConvexError("Une raison de relance est requise");
 			}
 		}
 
@@ -1699,7 +1705,7 @@ export const adminBookByCloser = mutation({
 			caller.role !== "closer" &&
 			caller.role !== "setter"
 		) {
-			throw new Error("Réservé aux closers et admins");
+			throw new ConvexError("Réservé aux closers et admins");
 		}
 
 		const pre = await preflightBooking(ctx, {
@@ -1711,7 +1717,7 @@ export const adminBookByCloser = mutation({
 			bypassClientGuards: true,
 			bypassWindowGuard: true,
 		});
-		if (!pre.ok) throw new Error(pre.reason);
+		if (!pre.ok) throw new ConvexError(pre.reason);
 		const event = pre.event;
 		const endTime = args.startTime + event.durationMinutes * MS_PER_MIN;
 
@@ -1728,13 +1734,13 @@ export const adminBookByCloser = mutation({
 			googleSyncStatus: "na",
 			preferredHostId: args.forceHostId,
 		});
-		if ("error" in insert) throw new Error(insert.error);
+		if ("error" in insert) throw new ConvexError(insert.error);
 
 		// Use existing lead or upsert a new one
 		let leadId: Id<"leads">;
 		if (args.existingLeadId) {
 			const existing = await ctx.db.get(args.existingLeadId);
-			if (!existing) throw new Error("Lead introuvable");
+			if (!existing) throw new ConvexError("Lead introuvable");
 			await ctx.db.patch(insert.bookingId, { leadId: args.existingLeadId });
 			await _applyAutoPhase(ctx, args.existingLeadId);
 			leadId = args.existingLeadId;
@@ -1908,11 +1914,11 @@ export const finalizeAsNaInternal = internalMutation({
 	args: { bookingId: v.id("bookings") },
 	handler: async (ctx, { bookingId }) => {
 		const booking = await ctx.db.get(bookingId);
-		if (!booking) throw new Error("Booking introuvable");
+		if (!booking) throw new ConvexError("Booking introuvable");
 		if (booking.googleSyncStatus !== "pending") return; // idempotent
 
 		const event = await ctx.db.get(booking.eventId);
-		if (!event) throw new Error("Event introuvable");
+		if (!event) throw new ConvexError("Event introuvable");
 
 		await ctx.db.patch(bookingId, {
 			googleSyncStatus: "na",

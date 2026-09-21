@@ -25,6 +25,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { errorMessage } from "@/lib/errors";
 
 // Prochaine heure ronde : un rendez-vous convenu au téléphone se pose presque
 // toujours sur une heure pleine.
@@ -77,7 +78,7 @@ export function BookForLeadDialog({ lead }: { lead: Doc<"leads"> }) {
 			toast.success("Rendez-vous créé");
 			setOpen(false);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Création impossible");
+			toast.error(errorMessage(err, "Création impossible"));
 		} finally {
 			setSubmitting(false);
 		}

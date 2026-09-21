@@ -1,4 +1,5 @@
 import Resend from "@auth/core/providers/resend";
+import { ConvexError } from "convex/values";
 
 /**
  * Provider OTP pour la réinitialisation de mot de passe.
@@ -34,7 +35,7 @@ export const ResendOTPPasswordReset = Resend({
 			}),
 		});
 		if (!res.ok) {
-			throw new Error(`Resend error ${res.status}: ${await res.text()}`);
+			throw new ConvexError(`Resend error ${res.status}: ${await res.text()}`);
 		}
 	},
 });

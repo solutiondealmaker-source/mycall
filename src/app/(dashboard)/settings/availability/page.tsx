@@ -17,6 +17,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -250,9 +251,7 @@ export default function AvailabilityPage() {
 			setIsDirty(false);
 			toast.success("Disponibilités enregistrées");
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Erreur lors de la sauvegarde",
-			);
+			toast.error(errorMessage(err, "Erreur lors de la sauvegarde"));
 		} finally {
 			setIsSaving(false);
 		}

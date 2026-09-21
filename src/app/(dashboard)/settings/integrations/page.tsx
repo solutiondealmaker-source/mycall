@@ -15,6 +15,7 @@ import { SystemeioCard } from "@/components/settings/systemeio-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 export default function IntegrationsPage() {
@@ -42,9 +43,7 @@ export default function IntegrationsPage() {
 			setWhsec("");
 			toast.success("Webhook configuré");
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Enregistrement impossible",
-			);
+			toast.error(errorMessage(err, "Enregistrement impossible"));
 		} finally {
 			setSavingHook(false);
 		}
@@ -58,9 +57,7 @@ export default function IntegrationsPage() {
 			setKey("");
 			toast.success("Clé Stripe enregistrée");
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Enregistrement impossible",
-			);
+			toast.error(errorMessage(err, "Enregistrement impossible"));
 		} finally {
 			setSaving(false);
 		}
@@ -71,7 +68,7 @@ export default function IntegrationsPage() {
 			await setEnabled({ enabled: next });
 			toast.success(next ? "Stripe activé" : "Stripe désactivé");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Action impossible");
+			toast.error(errorMessage(err, "Action impossible"));
 		}
 	}
 
@@ -80,9 +77,7 @@ export default function IntegrationsPage() {
 			await removeKey({});
 			toast.success("Clé Stripe supprimée");
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Suppression impossible",
-			);
+			toast.error(errorMessage(err, "Suppression impossible"));
 		}
 	}
 

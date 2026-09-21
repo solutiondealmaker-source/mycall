@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { errorMessage } from "@/lib/errors";
 import { canAdminister, INVITABLE_ROLES, type RoleValue } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
@@ -71,7 +72,7 @@ export default function TeamPage() {
 			await updateRole({ userId, role });
 			toast.success("Rôle mis à jour");
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setPendingAction(null);
 		}
@@ -85,7 +86,7 @@ export default function TeamPage() {
 				result.isAdmin ? "Droits admin accordés" : "Droits admin retirés",
 			);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setPendingAction(null);
 		}
@@ -103,7 +104,7 @@ export default function TeamPage() {
 			await removeUser({ userId });
 			toast.success(`"${name}" supprimé`);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setPendingAction(null);
 		}

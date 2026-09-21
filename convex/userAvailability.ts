@@ -2,7 +2,7 @@
 // Each row = one [dayOfWeek, startMinute, endMinute] window for one user.
 // Multiple rows per (userId, dayOfWeek) = multiple windows on the same day.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAuth } from "./lib/auth";
 
@@ -61,16 +61,16 @@ export const setWeekly = mutation({
 				w.dayOfWeek > 6 ||
 				!Number.isInteger(w.dayOfWeek)
 			) {
-				throw new Error(`dayOfWeek invalide : ${w.dayOfWeek}`);
+				throw new ConvexError(`dayOfWeek invalide : ${w.dayOfWeek}`);
 			}
 			if (w.startMinute < 0 || w.startMinute >= 1440) {
-				throw new Error(`startMinute hors plage : ${w.startMinute}`);
+				throw new ConvexError(`startMinute hors plage : ${w.startMinute}`);
 			}
 			if (w.endMinute <= 0 || w.endMinute > 1440) {
-				throw new Error(`endMinute hors plage : ${w.endMinute}`);
+				throw new ConvexError(`endMinute hors plage : ${w.endMinute}`);
 			}
 			if (w.startMinute >= w.endMinute) {
-				throw new Error(
+				throw new ConvexError(
 					`Fenêtre invalide : startMinute (${w.startMinute}) >= endMinute (${w.endMinute})`,
 				);
 			}

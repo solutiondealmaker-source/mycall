@@ -20,6 +20,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 // ─── Timezones ───────────────────────────────────────────────────────────────
@@ -77,9 +78,7 @@ export default function ProfilePage() {
 			setIsDirty(false);
 			toast.success("Profil mis à jour");
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Erreur lors de la sauvegarde",
-			);
+			toast.error(errorMessage(err, "Erreur lors de la sauvegarde"));
 		} finally {
 			setIsSaving(false);
 		}

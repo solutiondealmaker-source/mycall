@@ -3,7 +3,7 @@
 // with bookings.ts. `applyAutoPhase` re-derives lead.status from bookings.
 
 import { paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import {
@@ -46,7 +46,7 @@ async function getLeadWriteScope(
 ): Promise<{ userId: Id<"users">; seeAll: boolean }> {
 	const user = await getAuthenticatedUser(ctx);
 	if (user.role === "viewer") {
-		throw new Error("Ton rôle est en lecture seule.");
+		throw new ConvexError("Ton rôle est en lecture seule.");
 	}
 	return { userId: user._id, seeAll: isAdminUser(user) };
 }
@@ -232,9 +232,9 @@ export const update = mutation({
 	handler: async (ctx, { id, ...patch }) => {
 		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const lead = await ctx.db.get(id);
-		if (!lead) throw new Error("Lead introuvable");
+		if (!lead) throw new ConvexError("Lead introuvable");
 		if (!seeAll && !ownsLead(lead, userId))
-			throw new Error("Accès refusé à ce lead");
+			throw new ConvexError("Accès refusé à ce lead");
 
 		const phonePatch =
 			patch.phone !== undefined
@@ -278,11 +278,11 @@ export const assignMany = mutation({
 	handler: async (ctx, { ids, closerUserId }) => {
 		await requireAdmin(ctx);
 		if (ids.length > 200) {
-			throw new Error("Trop de leads sélectionnés (200 max).");
+			throw new ConvexError("Trop de leads sélectionnés (200 max).");
 		}
 		if (closerUserId) {
 			const target = await ctx.db.get(closerUserId);
-			if (!target) throw new Error("Utilisateur introuvable");
+			if (!target) throw new ConvexError("Utilisateur introuvable");
 		}
 		const now = Date.now();
 		let updated = 0;
@@ -302,7 +302,7 @@ export const exportByIds = query({
 	args: { ids: v.array(v.id("leads")) },
 	handler: async (ctx, { ids }) => {
 		const { userId, seeAll } = await getLeadScope(ctx);
-		if (ids.length > 5000) throw new Error("Export trop volumineux.");
+		if (ids.length > 5000) throw new ConvexError("Export trop volumineux.");
 
 		const users = await ctx.db.query("users").collect();
 		const nameById = new Map(
@@ -418,7 +418,7 @@ export const remove = mutation({
 	handler: async (ctx, { id }) => {
 		await requireAdmin(ctx);
 		const lead = await ctx.db.get(id);
-		if (!lead) throw new Error("Lead introuvable");
+		if (!lead) throw new ConvexError("Lead introuvable");
 		return await _purgeLead(ctx, id);
 	},
 });
@@ -428,7 +428,9 @@ export const removeMany = mutation({
 	handler: async (ctx, { ids }) => {
 		await requireAdmin(ctx);
 		if (ids.length > 100) {
-			throw new Error("Trop de leads sélectionnés (100 max par suppression).");
+			throw new ConvexError(
+				"Trop de leads sélectionnés (100 max par suppression).",
+			);
 		}
 		let deleted = 0;
 		let bookings = 0;
@@ -455,9 +457,9 @@ export const addNote = mutation({
 	handler: async (ctx, { leadId, body }) => {
 		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const lead = await ctx.db.get(leadId);
-		if (!lead) throw new Error("Lead introuvable");
+		if (!lead) throw new ConvexError("Lead introuvable");
 		if (!seeAll && !ownsLead(lead, userId))
-			throw new Error("Accès refusé à ce lead");
+			throw new ConvexError("Accès refusé à ce lead");
 
 		const now = Date.now();
 		const noteId = await ctx.db.insert("leadNotes", {
@@ -477,11 +479,13 @@ export const deleteNote = mutation({
 	handler: async (ctx, { noteId }) => {
 		const userId = await requireAuth(ctx);
 		const note = await ctx.db.get(noteId);
-		if (!note) throw new Error("Note introuvable");
+		if (!note) throw new ConvexError("Note introuvable");
 		// Only the author or an admin can delete
 		const caller = await ctx.db.get(userId);
 		if (note.authorUserId !== userId && !caller?.isAdmin) {
-			throw new Error("Seul l'auteur ou un admin peut supprimer cette note");
+			throw new ConvexError(
+				"Seul l'auteur ou un admin peut supprimer cette note",
+			);
 		}
 		await ctx.db.delete(noteId);
 	},
@@ -507,12 +511,12 @@ export const addFollowUp = mutation({
 	handler: async (ctx, args) => {
 		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const lead = await ctx.db.get(args.leadId);
-		if (!lead) throw new Error("Lead introuvable");
+		if (!lead) throw new ConvexError("Lead introuvable");
 		if (!seeAll && !ownsLead(lead, userId))
-			throw new Error("Accès refusé à ce lead");
+			throw new ConvexError("Accès refusé à ce lead");
 
 		if (args.dueAt < Date.now() - 60_000) {
-			throw new Error("La date de relance doit être dans le futur");
+			throw new ConvexError("La date de relance doit être dans le futur");
 		}
 
 		const followUpId = await ctx.db.insert("leadFollowUps", {
@@ -538,10 +542,10 @@ export const completeFollowUp = mutation({
 	handler: async (ctx, { followUpId, note }) => {
 		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const fu = await ctx.db.get(followUpId);
-		if (!fu) throw new Error("Follow-up introuvable");
+		if (!fu) throw new ConvexError("Follow-up introuvable");
 		const fuLead = await ctx.db.get(fu.leadId);
 		if (fuLead && !seeAll && !ownsLead(fuLead, userId))
-			throw new Error("Accès refusé à ce lead");
+			throw new ConvexError("Accès refusé à ce lead");
 		await ctx.db.patch(followUpId, {
 			status: "done",
 			...(note !== undefined ? { note } : {}),
@@ -555,10 +559,10 @@ export const cancelFollowUp = mutation({
 	handler: async (ctx, { followUpId }) => {
 		const { userId, seeAll } = await getLeadWriteScope(ctx);
 		const fu = await ctx.db.get(followUpId);
-		if (!fu) throw new Error("Follow-up introuvable");
+		if (!fu) throw new ConvexError("Follow-up introuvable");
 		const fuLead = await ctx.db.get(fu.leadId);
 		if (fuLead && !seeAll && !ownsLead(fuLead, userId))
-			throw new Error("Accès refusé à ce lead");
+			throw new ConvexError("Accès refusé à ce lead");
 		await ctx.db.patch(followUpId, { status: "cancelled" });
 	},
 });

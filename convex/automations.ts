@@ -5,7 +5,7 @@
 // Entrant : une clé d'API permet de créer ou compléter un lead, d'ajouter une
 // note ou de changer un statut (routes /api/v1 dans http.ts).
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -82,20 +82,23 @@ function validateUrl(url: string): string {
 	try {
 		parsed = new URL(clean);
 	} catch {
-		throw new Error("Adresse invalide : colle l'URL complète du webhook.");
+		throw new ConvexError(
+			"Adresse invalide : colle l'URL complète du webhook.",
+		);
 	}
 	if (parsed.protocol !== "https:") {
-		throw new Error("L'adresse doit commencer par https://");
+		throw new ConvexError("L'adresse doit commencer par https://");
 	}
 	return clean;
 }
 
 function validateEvents(events: string[]): string[] {
 	const unique = [...new Set(events)];
-	if (unique.length === 0) throw new Error("Choisis au moins un événement.");
+	if (unique.length === 0)
+		throw new ConvexError("Choisis au moins un événement.");
 	for (const e of unique) {
 		if (e !== "*" && !OUTBOUND_EVENT_TYPES.includes(e)) {
-			throw new Error(`Événement inconnu : ${e}`);
+			throw new ConvexError(`Événement inconnu : ${e}`);
 		}
 	}
 	return unique;
@@ -438,7 +441,7 @@ export const updateEndpoint = mutation({
 	handler: async (ctx, { id, url, events, description, active }) => {
 		await requireAdmin(ctx);
 		const endpoint = await ctx.db.get(id);
-		if (!endpoint) throw new Error("Webhook introuvable");
+		if (!endpoint) throw new ConvexError("Webhook introuvable");
 		await ctx.db.patch(id, {
 			...(url !== undefined && { url: validateUrl(url) }),
 			...(events !== undefined && { events: validateEvents(events) }),
@@ -481,7 +484,7 @@ export const sendTest = action({
 			internal.automations.getEndpointInternal,
 			{ id },
 		);
-		if (!endpoint) throw new Error("Webhook introuvable");
+		if (!endpoint) throw new ConvexError("Webhook introuvable");
 
 		const eventType =
 			type ??
@@ -609,7 +612,8 @@ export const createApiKey = action({
 			{},
 		);
 		const label = name.trim();
-		if (!label) throw new Error("Donne un nom à cette clé (ex. « Make »).");
+		if (!label)
+			throw new ConvexError("Donne un nom à cette clé (ex. « Make »).");
 		const key = `mc_${randomToken(32)}`;
 		await ctx.runMutation(internal.automations.insertApiKeyInternal, {
 			userId,
@@ -683,7 +687,7 @@ export function parseStatus(
 		.replace(/[\s-]+/g, "_");
 	const status = STATUS_ALIASES[key];
 	if (!status) {
-		throw new Error(
+		throw new ConvexError(
 			`Statut inconnu « ${input} ». Valeurs possibles : ${Object.keys(LEAD_STATUS_LABELS).join(", ")}.`,
 		);
 	}
@@ -774,7 +778,7 @@ export const apiUpsertLeadInternal = internalMutation({
 		const email = args.email?.trim().toLowerCase() || undefined;
 		const phone = args.phone?.trim() || undefined;
 		if (!email && !phone) {
-			throw new Error("Il faut au moins un email ou un téléphone.");
+			throw new ConvexError("Il faut au moins un email ou un téléphone.");
 		}
 		const status = parseStatus(args.status);
 		const amountCents =
@@ -789,7 +793,7 @@ export const apiUpsertLeadInternal = internalMutation({
 				)
 				.first();
 			if (!closer) {
-				throw new Error(`Aucun membre avec l'email ${args.closerEmail}.`);
+				throw new ConvexError(`Aucun membre avec l'email ${args.closerEmail}.`);
 			}
 			closerUserId = closer._id;
 		}
@@ -800,7 +804,8 @@ export const apiUpsertLeadInternal = internalMutation({
 				.query("events")
 				.withIndex("by_slug", (q) => q.eq("slug", args.eventSlug?.trim() ?? ""))
 				.first();
-			if (!event) throw new Error(`Événement introuvable : ${args.eventSlug}`);
+			if (!event)
+				throw new ConvexError(`Événement introuvable : ${args.eventSlug}`);
 		}
 
 		const utm = {
@@ -888,9 +893,9 @@ export const apiAddNoteInternal = internalMutation({
 		body: v.string(),
 	},
 	handler: async (ctx, { userId, body, ...ref }) => {
-		if (!body.trim()) throw new Error("La note est vide.");
+		if (!body.trim()) throw new ConvexError("La note est vide.");
 		const lead = await findLead(ctx, ref);
-		if (!lead) throw new Error("Lead introuvable.");
+		if (!lead) throw new ConvexError("Lead introuvable.");
 		const now = Date.now();
 		await ctx.db.insert("leadNotes", {
 			leadId: lead._id,
@@ -913,9 +918,9 @@ export const apiSetStatusInternal = internalMutation({
 	},
 	handler: async (ctx, { status, amount, ...ref }) => {
 		const lead = await findLead(ctx, ref);
-		if (!lead) throw new Error("Lead introuvable.");
+		if (!lead) throw new ConvexError("Lead introuvable.");
 		const next = parseStatus(status);
-		if (!next) throw new Error("Statut manquant.");
+		if (!next) throw new ConvexError("Statut manquant.");
 		await applyStatus(
 			ctx,
 			lead,

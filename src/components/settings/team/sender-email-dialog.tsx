@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { errorMessage } from "@/lib/errors";
 
 interface SenderSettings {
 	domain: string | null;
@@ -74,7 +75,7 @@ export function SenderEmailLine({
 			);
 			setOpen(false);
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Erreur");
+			toast.error(errorMessage(err, "Erreur"));
 		} finally {
 			setSaving(false);
 		}

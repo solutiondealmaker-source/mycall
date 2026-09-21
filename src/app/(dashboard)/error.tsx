@@ -15,6 +15,7 @@ import { AlertTriangle, ChevronLeft, Lock, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 
 // Message levé par requireAdmin / requireReadAll côté Convex.
 const FORBIDDEN = "Réservé à l'administration";
@@ -29,12 +30,12 @@ export default function DashboardError({
 	// Une erreur de droits est attendue et se lit dans l'écran ci-dessous ; toute
 	// autre mérite d'atterrir dans la console pour être diagnostiquée.
 	useEffect(() => {
-		if (!error.message.includes(FORBIDDEN)) {
+		if (!errorMessage(error, "").includes(FORBIDDEN)) {
 			console.error("[dashboard] erreur non gérée :", error);
 		}
 	}, [error]);
 
-	const isForbidden = error.message.includes(FORBIDDEN);
+	const isForbidden = errorMessage(error, "").includes(FORBIDDEN);
 
 	return (
 		<div className="animate-fade-in max-w-xl">
