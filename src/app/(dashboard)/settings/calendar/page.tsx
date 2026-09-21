@@ -50,14 +50,19 @@ function useGoogleToast() {
 				message: "Compte Google connecté avec succès !",
 			});
 		} else if (google === "error") {
-			const msg =
-				reason === "state"
-					? "Lien expiré ou invalide. Merci de réessayer."
-					: reason === "missing_code"
-						? "Flux OAuth incomplet. Merci de réessayer."
-						: reason
-							? decodeURIComponent(reason).slice(0, 120)
-							: "Erreur lors de la connexion Google.";
+			const known: Record<string, string> = {
+				state: "Lien expiré ou invalide. Merci de réessayer.",
+				missing_code: "Flux OAuth incomplet. Merci de réessayer.",
+				access_denied:
+					"Connexion annulée : l'accès à l'agenda n'a pas été autorisé.",
+				config_site_url:
+					"Configuration du site incomplète : la variable NEXT_PUBLIC_CONVEX_SITE_URL est vide dans Vercel. Préviens l'administrateur.",
+				config_client_id:
+					"Configuration du site incomplète : la variable GOOGLE_CLIENT_ID est vide dans Vercel. Préviens l'administrateur.",
+			};
+			const msg = reason
+				? (known[reason] ?? decodeURIComponent(reason).slice(0, 120))
+				: "Erreur lors de la connexion Google.";
 			setToast({ type: "error", message: msg });
 		}
 		if (google) {

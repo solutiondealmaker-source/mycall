@@ -60,21 +60,27 @@ export async function GET(request: Request) {
 
 	// 4. Construire l'URL OAuth Google
 	// redirectUri = *.convex.site/google/callback (jamais Next.js — G1)
-	const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
-	if (!convexSiteUrl) {
+	// À défaut, l'adresse .convex.site se déduit de l'adresse .convex.cloud.
+	const convexSiteUrl =
+		process.env.NEXT_PUBLIC_CONVEX_SITE_URL?.trim() ||
+		process.env.NEXT_PUBLIC_CONVEX_URL?.trim().replace(
+			/\.convex\.cloud\/?$/,
+			".convex.site",
+		);
+	if (!convexSiteUrl?.includes(".convex.site")) {
 		console.error("[google/start] Missing NEXT_PUBLIC_CONVEX_SITE_URL");
 		return NextResponse.redirect(
-			new URL(`${returnTo}?google=error&reason=config`, request.url),
+			new URL(`${returnTo}?google=error&reason=config_site_url`, request.url),
 		);
 	}
 	const redirectUri = `${convexSiteUrl.replace(/\/$/, "")}/google/callback`;
 
 	// Côté route handler server — on utilise la var privée (pas besoin de NEXT_PUBLIC_)
-	const clientId = process.env.GOOGLE_CLIENT_ID;
+	const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
 	if (!clientId) {
 		console.error("[google/start] Missing GOOGLE_CLIENT_ID");
 		return NextResponse.redirect(
-			new URL(`${returnTo}?google=error&reason=config`, request.url),
+			new URL(`${returnTo}?google=error&reason=config_client_id`, request.url),
 		);
 	}
 
