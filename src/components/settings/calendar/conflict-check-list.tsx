@@ -4,6 +4,8 @@ import { useAction, useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import { Loader2, RefreshCw, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -55,7 +57,7 @@ export function ConflictCheckList({
 			const result = await listCalendars({});
 			setCalendars(result);
 		} catch (e) {
-			console.error(e);
+			toast.error(errorMessage(e, "Impossible de lire tes agendas Google."));
 		} finally {
 			setLoading(false);
 		}
@@ -86,8 +88,13 @@ export function ConflictCheckList({
 					calendarSummary: c.summary,
 				}));
 			await setConflictCalendars({ calendars: newList });
+			toast.success(
+				newList.length === 0
+					? "Plus aucun agenda ne bloque tes créneaux"
+					: `${newList.length} agenda(s) vérifié(s) avant chaque réservation`,
+			);
 		} catch (e) {
-			console.error(e);
+			toast.error(errorMessage(e, "Enregistrement impossible."));
 		} finally {
 			setSaving(false);
 		}
