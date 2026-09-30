@@ -47,6 +47,11 @@ function formFromEvent(event: EventDoc): InvitationForm {
 }
 
 function renderPreview(form: InvitationForm): string {
+	// Même adresse que les vrais liens, pour que l'aperçu ne trompe pas.
+	const origin =
+		typeof window === "undefined"
+			? "https://exemple.com"
+			: window.location.origin;
 	const sample = {
 		firstName: "Léa",
 		lastName: "Martin",
@@ -56,8 +61,8 @@ function renderPreview(form: InvitationForm): string {
 		eventName: "Appel découverte 30 min",
 		date: "lundi 26 mai 2026",
 		time: "14:30",
-		cancelUrl: "https://app.example.com/book/manage/abc123",
-		rescheduleUrl: "https://app.example.com/book/reschedule/abc123",
+		cancelUrl: `${origin}/book/manage/abc123`,
+		rescheduleUrl: `${origin}/book/reschedule/abc123`,
 	};
 
 	const apply = (tpl: string) =>

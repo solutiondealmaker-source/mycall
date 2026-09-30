@@ -475,7 +475,13 @@ async function createGoogleEventForBooking(
 		: "";
 	const cancelUrl = `${siteUrl}/book/manage/${booking.cancelToken}`;
 	const rescheduleUrl = `${siteUrl}/book/reschedule/${booking.rescheduleToken}`;
-	const description = `${greeting}${body}${signature}\n\nAnnuler : ${cancelUrl}\nReplanifier : ${rescheduleUrl}`;
+	// Les deux liens ne sont ajoutés qu'en l'absence de ceux écrits par le
+	// client dans son texte, sinon le prospect les voit en double.
+	const written = `${greeting}${body}${signature}`;
+	const description =
+		written.includes(cancelUrl) || written.includes(rescheduleUrl)
+			? written
+			: `${written}\n\nAnnuler : ${cancelUrl}\nReplanifier : ${rescheduleUrl}`;
 
 	const isGoogleMeet = event.location !== "custom";
 
