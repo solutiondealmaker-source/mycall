@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { AcquisitionWidget } from "@/components/analytics/acquisition-widget";
 import { CallsCreatedWidget } from "@/components/analytics/calls-created-widget";
 import {
 	type DateRange,
@@ -100,6 +101,11 @@ export default function AnalyticsPage() {
 				{/* W6 — Show-up */}
 				<motion.div variants={itemVariants}>
 					<ShowUpWidget {...sharedProps} />
+				</motion.div>
+
+				{/* W7 — Acquisition (pleine largeur : tableau) */}
+				<motion.div variants={itemVariants} className="lg:col-span-2">
+					<AcquisitionWidget {...sharedProps} />
 				</motion.div>
 			</motion.div>
 		</div>

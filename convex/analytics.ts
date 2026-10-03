@@ -399,3 +399,135 @@ export const getShowUpStats = query({
 		};
 	},
 });
+
+// ============================================================
+// getAcquisitionStats
+// ============================================================
+//
+// Performance par origine : d'où viennent les leads, et surtout lesquels
+// deviennent des clients. Les UTM sont captées sur la page de réservation
+// (?utm_source=…) et recopiées sur le lead. Un lead sans UTM — bouche à
+// oreille, lien partagé à la main — tombe dans « Non renseigné ».
+
+const ACQUISITION_DIMENSIONS = {
+	source: "utmSource",
+	medium: "utmMedium",
+	campaign: "utmCampaign",
+	content: "utmContent",
+} as const;
+
+export const getAcquisitionStats = query({
+	args: {
+		dimension: v.union(
+			v.literal("source"),
+			v.literal("medium"),
+			v.literal("campaign"),
+			v.literal("content"),
+		),
+		eventIds: v.optional(v.array(v.id("events"))),
+		startMs: v.number(),
+		endMs: v.number(),
+	},
+	handler: async (ctx, { dimension, eventIds, startMs, endMs }) => {
+		await requireReadAll(ctx);
+
+		const field = ACQUISITION_DIMENSIONS[dimension];
+		const leads = (await ctx.db.query("leads").collect()).filter((l) => {
+			if (!inRange(l._creationTime, startMs, endMs)) return false;
+			if (eventIds && (!l.eventId || !eventIds.includes(l.eventId)))
+				return false;
+			return true;
+		});
+		if (leads.length === 0) {
+			return { rows: [], totals: emptyAcquisitionRow("Total") };
+		}
+
+		// Un lead peut avoir plusieurs rendez-vous : replanifications, second
+		// appel. Les compteurs portent donc sur les rendez-vous, pas sur les leads.
+		const leadKey = new Map<string, string>();
+		for (const l of leads) {
+			leadKey.set(l._id, (l[field] ?? "").trim() || "Non renseigné");
+		}
+		const bookings = (await ctx.db.query("bookings").collect()).filter(
+			(b) => b.leadId && leadKey.has(b.leadId) && b.status !== "rescheduled",
+		);
+
+		const rows = new Map<string, AcquisitionRow>();
+		const row = (key: string) => {
+			const existing = rows.get(key);
+			if (existing) return existing;
+			const created = emptyAcquisitionRow(key);
+			rows.set(key, created);
+			return created;
+		};
+
+		for (const l of leads) row(leadKey.get(l._id) as string).leads++;
+
+		for (const b of bookings) {
+			const r = row(leadKey.get(b.leadId as string) as string);
+			r.bookings++;
+			if (b.tenue === "tenu") r.held++;
+			if (b.tenue === "no_show") r.noShow++;
+			if (b.issue === "gagne") {
+				r.won++;
+				r.revenueCents += b.issueAmountCents ?? 0;
+			}
+		}
+
+		const finish = (r: AcquisitionRow): AcquisitionRow => ({
+			...r,
+			bookingRate: r.leads > 0 ? Math.round((r.bookings / r.leads) * 100) : 0,
+			showUpRate:
+				r.held + r.noShow > 0
+					? Math.round((r.held / (r.held + r.noShow)) * 100)
+					: 0,
+			closeRate: r.held > 0 ? Math.round((r.won / r.held) * 100) : 0,
+		});
+
+		const totals = emptyAcquisitionRow("Total");
+		for (const r of rows.values()) {
+			totals.leads += r.leads;
+			totals.bookings += r.bookings;
+			totals.held += r.held;
+			totals.noShow += r.noShow;
+			totals.won += r.won;
+			totals.revenueCents += r.revenueCents;
+		}
+
+		return {
+			// Le chiffre d'affaires décide de ce qu'on regarde en premier.
+			rows: Array.from(rows.values())
+				.map(finish)
+				.sort((a, b) => b.revenueCents - a.revenueCents || b.leads - a.leads),
+			totals: finish(totals),
+		};
+	},
+});
+
+interface AcquisitionRow {
+	key: string;
+	leads: number;
+	bookings: number;
+	held: number;
+	noShow: number;
+	won: number;
+	revenueCents: number;
+	bookingRate: number;
+	showUpRate: number;
+	closeRate: number;
+}
+
+function emptyAcquisitionRow(key: string): AcquisitionRow {
+	return {
+		key,
+		leads: 0,
+		bookings: 0,
+		held: 0,
+		noShow: 0,
+		won: 0,
+		revenueCents: 0,
+		bookingRate: 0,
+		showUpRate: 0,
+		closeRate: 0,
+	};
+}
