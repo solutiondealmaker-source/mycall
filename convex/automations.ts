@@ -19,7 +19,7 @@ import {
 	query,
 } from "./_generated/server";
 import { _findLeadByAnyKey } from "./leads";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, requireIntegrations } from "./lib/auth";
 import { BRAND_NAME } from "./lib/emailTemplates";
 import { normalizeEmail, normalizePhone } from "./lib/leadMatch";
 import { type EventSource, emitEvent } from "./lib/outbound";
@@ -364,7 +364,7 @@ export const deliver = internalAction({
 export const listEndpoints = query({
 	args: {},
 	handler: async (ctx) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		const endpoints = await ctx.db.query("webhookEndpoints").collect();
 		return endpoints.sort((a, b) => a.createdAt - b.createdAt);
 	},
@@ -373,7 +373,7 @@ export const listEndpoints = query({
 export const listDeliveries = query({
 	args: { endpointId: v.id("webhookEndpoints") },
 	handler: async (ctx, { endpointId }) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		return await ctx.db
 			.query("webhookDeliveries")
 			.withIndex("by_endpoint_createdAt", (q) => q.eq("endpointId", endpointId))
@@ -403,7 +403,15 @@ export const insertEndpointInternal = internalMutation({
 	},
 });
 
+// Branchement d'outils : administration, ou rôle « intégrations ».
 export const assertAdminInternal = internalQuery({
+	args: {},
+	handler: async (ctx) => await requireIntegrations(ctx),
+});
+
+// Une clé d'API lit et écrit TOUS les leads hors de l'interface : sa création
+// reste donc réservée à l'administration, même pour le rôle « intégrations ».
+export const assertStrictAdminInternal = internalQuery({
 	args: {},
 	handler: async (ctx) => await requireAdmin(ctx),
 });
@@ -439,7 +447,7 @@ export const updateEndpoint = mutation({
 		active: v.optional(v.boolean()),
 	},
 	handler: async (ctx, { id, url, events, description, active }) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		const endpoint = await ctx.db.get(id);
 		if (!endpoint) throw new ConvexError("Webhook introuvable");
 		await ctx.db.patch(id, {
@@ -460,7 +468,7 @@ export const updateEndpoint = mutation({
 export const deleteEndpoint = mutation({
 	args: { id: v.id("webhookEndpoints") },
 	handler: async (ctx, { id }) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		const deliveries = await ctx.db
 			.query("webhookDeliveries")
 			.withIndex("by_endpoint_createdAt", (q) => q.eq("endpointId", id))
@@ -569,7 +577,7 @@ export const sendTest = action({
 export const listApiKeys = query({
 	args: {},
 	handler: async (ctx) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		const keys = await ctx.db.query("apiKeys").collect();
 		return keys
 			.filter((k) => !k.revokedAt)
@@ -608,7 +616,7 @@ export const createApiKey = action({
 	args: { name: v.string() },
 	handler: async (ctx, { name }): Promise<{ key: string }> => {
 		const userId = await ctx.runQuery(
-			internal.automations.assertAdminInternal,
+			internal.automations.assertStrictAdminInternal,
 			{},
 		);
 		const label = name.trim();

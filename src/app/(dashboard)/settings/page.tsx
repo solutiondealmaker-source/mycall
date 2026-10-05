@@ -16,7 +16,7 @@ import {
 import Link from "next/link";
 import { api } from "@/../convex/_generated/api";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { canAdminister } from "@/lib/roles";
+import { canAdminister, canManageIntegrations } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 // ─── Nav cards data ─────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ const SETTINGS_CARDS = [
 		icon: Bell,
 		title: "Emails",
 		description: "Textes des emails prospects, journal d'envoi",
-		adminOnly: false,
+		adminOnly: true,
 	},
 	{
 		href: "/settings/team",
@@ -75,8 +75,10 @@ const SETTINGS_CARDS = [
 		href: "/settings/integrations",
 		icon: Plug,
 		title: "Intégrations",
-		description: "Stripe — liens de paiement depuis le CRM",
+		description: "Stripe, emails, Make, webhooks, Calendly, Fathom",
 		adminOnly: true,
+		// Seule page ouverte au rôle « intégrations ».
+		integrations: true,
 	},
 ] as const;
 
@@ -104,8 +106,18 @@ export default function SettingsPage() {
 	const profile = useQuery(api.users.getMyProfile);
 
 	const isAdmin = canAdminister(profile);
+	const managesIntegrations = canManageIntegrations(profile);
 
-	const visibleCards = SETTINGS_CARDS.filter((c) => !c.adminOnly || isAdmin);
+	// Le rôle « intégrations » n'a que faire des disponibilités ou de l'agenda :
+	// il ne reçoit aucun rendez-vous. On lui laisse son profil et les outils.
+	const visibleCards = SETTINGS_CARDS.filter((c) => {
+		if (managesIntegrations && !isAdmin) {
+			return (
+				c.href === "/settings/profile" || c.href === "/settings/integrations"
+			);
+		}
+		return !c.adminOnly || isAdmin;
+	});
 
 	return (
 		<div className="animate-fade-in">

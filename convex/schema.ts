@@ -42,6 +42,10 @@ export default defineSchema({
 				// Observateur : voit tout (RDV, leads, CA), ne modifie rien. Destiné
 				// aux accompagnants externes (coach, consultant, expert-comptable).
 				v.literal("viewer"),
+				// Intégrations : branche les outils (Make, webhooks, systeme.io) sans
+				// jamais voir les leads, les appels ni les chiffres. Pour un
+				// prestataire externe — média buyer, intégrateur.
+				v.literal("integrations"),
 			),
 		),
 		isAdmin: v.optional(v.boolean()),
@@ -64,6 +68,7 @@ export default defineSchema({
 			v.literal("ops"),
 			v.literal("admin"),
 			v.literal("viewer"),
+			v.literal("integrations"),
 		),
 		invitedByUserId: v.id("users"),
 		// Événements dont la personne devient hôte à la création de son compte.

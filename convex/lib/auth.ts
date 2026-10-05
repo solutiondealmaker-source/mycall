@@ -39,6 +39,12 @@ export function canReadAll(user: AnyUser): boolean {
 	return isAdminUser(user) || user.role === "viewer";
 }
 
+// Branchements d'outils : webhooks sortants, API entrante, systeme.io. Le rôle
+// "integrations" s'arrête là — il ne lit ni leads, ni rendez-vous, ni chiffres.
+export function canManageIntegrations(user: AnyUser): boolean {
+	return isAdminUser(user) || user.role === "integrations";
+}
+
 // Throws unless caller is admin / privileged.
 export async function requireAdmin(
 	ctx: MutationCtx | QueryCtx,
@@ -54,6 +60,16 @@ export async function requireReadAll(
 ): Promise<Id<"users">> {
 	const user = await getAuthenticatedUser(ctx);
 	if (!canReadAll(user)) throw new ConvexError("Réservé à l'administration");
+	return user._id;
+}
+
+// Idem pour les écrans de branchement d'outils.
+export async function requireIntegrations(
+	ctx: MutationCtx | QueryCtx,
+): Promise<Id<"users">> {
+	const user = await getAuthenticatedUser(ctx);
+	if (!canManageIntegrations(user))
+		throw new ConvexError("Réservé à l'administration");
 	return user._id;
 }
 

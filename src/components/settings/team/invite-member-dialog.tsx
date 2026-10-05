@@ -31,7 +31,7 @@ import { INVITABLE_ROLES, type RoleValue } from "@/lib/roles";
 
 // Rôles qui reçoivent des rendez-vous : on leur propose de choisir des
 // événements dès l'invitation.
-const HOST_ROLES = new Set<RoleValue>([
+const HOST_ROLES = new Set<string>([
 	"closer",
 	"setter",
 	"coach",

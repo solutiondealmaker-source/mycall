@@ -9,7 +9,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, query } from "./_generated/server";
-import { getAuthenticatedUser } from "./lib/auth";
+import { getAuthenticatedUser, requireReadAll } from "./lib/auth";
 
 // ============================================================
 // insertLogRow — called by logEmail() helper in emails.ts
@@ -72,10 +72,12 @@ export const getUserForEmail = internalQuery({
 // listRecentLogs — public query for settings/notifications page
 // ============================================================
 
+// Le journal nomme les destinataires : il reste réservé à qui a déjà une vue
+// globale sur les prospects.
 export const listRecentLogs = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthenticatedUser(ctx);
+		await requireReadAll(ctx);
 		return await ctx.db
 			.query("notificationLogs")
 			.withIndex("by_date")

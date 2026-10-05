@@ -718,6 +718,11 @@ const ROLE_COPY: Record<string, { label: string; description: string }> = {
 		description:
 			"Consulte les rendez-vous, les leads et le chiffre d'affaires. Ne peut rien modifier.",
 	},
+	integrations: {
+		label: "Intégrations",
+		description:
+			"Branche les outils externes : Make, Zapier, webhooks, systeme.io. Ne voit ni les leads, ni les appels, ni les chiffres.",
+	},
 };
 
 export const sendInvitation = internalAction({

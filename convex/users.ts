@@ -136,6 +136,7 @@ export const updateUserRole = mutation({
 			v.literal("ops"),
 			v.literal("admin"),
 			v.literal("viewer"),
+			v.literal("integrations"),
 		),
 	},
 	handler: async (ctx, { userId, role }) => {

@@ -9,6 +9,7 @@ import {
 	CalendarDays,
 	ChevronDown,
 	LayoutDashboard,
+	Lock,
 	LogOut,
 	PanelLeftClose,
 	PanelLeftOpen,
@@ -19,6 +20,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api } from "@/../convex/_generated/api";
 import { BrandMark } from "@/components/brand-mark";
 import { AvatarCircle } from "@/components/dashboard/avatar-circle";
@@ -31,7 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { BRAND_LOGO_FULL, BRAND_NAME } from "@/lib/brand";
-import { canReadAll } from "@/lib/roles";
+import { canReadAll, isIntegrationsOnly } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
@@ -73,6 +75,8 @@ interface NavItemProps {
 	label: string;
 	isActive: boolean;
 	collapsed: boolean;
+	/** Visible mais fermé : le compte n'a pas accès à cette page. */
+	locked?: boolean;
 }
 
 function NavItem({
@@ -81,7 +85,39 @@ function NavItem({
 	label,
 	isActive,
 	collapsed,
+	locked,
 }: NavItemProps) {
+	if (locked) {
+		return (
+			<button
+				type="button"
+				title="Réservé à l'administration"
+				onClick={() =>
+					toast.info(`${label} : réservé à l'administration`, {
+						description:
+							"Ton accès couvre le branchement des outils, dans Paramètres → Intégrations.",
+					})
+				}
+				className={cn(
+					"relative flex items-center gap-2.5 rounded-[var(--radius-sm)]",
+					"h-9 px-3 w-full text-left",
+					"text-sm font-medium text-[var(--ink-ghost)] cursor-not-allowed",
+					"hover:bg-[var(--surface-raised)] transition-colors duration-150",
+					collapsed && "justify-center px-0",
+				)}
+			>
+				<Icon className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+				{!collapsed && (
+					<>
+						<span className="overflow-hidden whitespace-nowrap flex-1">
+							{label}
+						</span>
+						<Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+					</>
+				)}
+			</button>
+		);
+	}
 	return (
 		<Link
 			href={href}
@@ -139,7 +175,12 @@ export function Sidebar() {
 	// vaut qu'un lien apparaisse une fraction de seconde plus tard que de le
 	// proposer à quelqu'un qui n'y a pas droit.
 	const seesAll = canReadAll(profile);
-	const visibleNavItems = NAV_ITEMS.filter((item) => !item.readAll || seesAll);
+	const integrationsOnly = isIntegrationsOnly(profile);
+	// Un compte « intégrations » voit la structure de l'outil, cadenas à l'appui :
+	// masquer les entrées lui ferait croire à un bug.
+	const visibleNavItems = integrationsOnly
+		? NAV_ITEMS.map((item) => ({ ...item, locked: item.href !== "/settings" }))
+		: NAV_ITEMS.filter((item) => !item.readAll || seesAll);
 
 	const displayName = profile?.name ?? profile?.email ?? "Utilisateur";
 	const displayEmail = profile?.email ?? "";
@@ -223,6 +264,7 @@ export function Sidebar() {
 						label={item.label}
 						isActive={isActive(item.href)}
 						collapsed={collapsed}
+						locked={"locked" in item ? Boolean(item.locked) : false}
 					/>
 				))}
 

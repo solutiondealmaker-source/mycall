@@ -16,10 +16,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorMessage } from "@/lib/errors";
+import { canAdminister } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 export default function IntegrationsPage() {
-	const settings = useQuery(api.stripe.getSettings, {});
+	const profile = useQuery(api.users.getMyProfile);
+	// Le rôle « intégrations » branche les outils, sans toucher à l'encaissement,
+	// aux appels enregistrés ni à l'import Calendly.
+	const isAdmin = canAdminister(profile);
+	const settings = useQuery(api.stripe.getSettings, isAdmin ? {} : "skip");
 	const setStripeKey = useMutation(api.stripe.setStripeKey);
 	const setEnabled = useMutation(api.stripe.setStripeEnabled);
 	const removeKey = useMutation(api.stripe.removeStripeKey);
@@ -92,244 +97,255 @@ export default function IntegrationsPage() {
 				description="Connecte des services externes à ton CRM"
 			/>
 
-			<motion.div
-				initial={{ opacity: 0, y: 8 }}
-				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.15 }}
-				className="card-premium max-w-2xl space-y-5"
-			>
-				{/* En-tête Stripe */}
-				<div className="flex items-start gap-3">
-					<div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-soft)] ring-1 ring-[var(--brand-glow)] flex items-center justify-center shrink-0">
-						<CreditCard
-							className="w-5 h-5 text-[var(--brand)]"
-							strokeWidth={1.75}
-						/>
-					</div>
-					<div className="flex-1 min-w-0">
-						<div className="flex items-center gap-2">
-							<h2 className="text-base font-semibold font-[family-name:var(--font-display)] text-[var(--ink)]">
-								Stripe
-							</h2>
-							{configured && (
-								<span
-									className={cn(
-										"text-[11px] font-medium px-2 py-0.5 rounded-full",
-										enabled
-											? "bg-[var(--success-soft)] text-[var(--success)]"
-											: "bg-[var(--surface-muted)] text-[var(--ink-ghost)]",
-									)}
-								>
-									{enabled ? "Actif" : "Inactif"}
-								</span>
-							)}
-							{configured && (
-								<span
-									className={cn(
-										"text-[11px] font-medium px-2 py-0.5 rounded-full",
-										isLive
-											? "bg-[var(--destructive-soft)] text-[var(--destructive)]"
-											: "bg-[var(--warning-soft)] text-[var(--warning)]",
-									)}
-								>
-									{isLive ? "Mode réel" : "Mode test"}
-								</span>
-							)}
+			{!isAdmin && (
+				<p className="mb-6 text-sm text-[var(--ink-muted)] rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] px-4 py-3">
+					Ton accès couvre le branchement des outils. L'encaissement, les
+					enregistrements d'appels et l'import Calendly restent à
+					l'administration, qui te fournira les clés d'API dont tu as besoin.
+				</p>
+			)}
+
+			{isAdmin && (
+				<motion.div
+					initial={{ opacity: 0, y: 8 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.15 }}
+					className="card-premium max-w-2xl space-y-5"
+				>
+					{/* En-tête Stripe */}
+					<div className="flex items-start gap-3">
+						<div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--brand-soft)] ring-1 ring-[var(--brand-glow)] flex items-center justify-center shrink-0">
+							<CreditCard
+								className="w-5 h-5 text-[var(--brand)]"
+								strokeWidth={1.75}
+							/>
 						</div>
-						<p className="text-sm text-[var(--ink-muted)] mt-0.5">
-							Génère des liens de paiement directement depuis la fiche d'un
-							lead.
-						</p>
-					</div>
-				</div>
-
-				{/* État actuel */}
-				{settings === undefined ? (
-					<p className="text-sm text-[var(--ink-ghost)]">Chargement…</p>
-				) : configured ? (
-					<div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] p-4 space-y-3">
-						<div className="flex items-center gap-2 text-sm text-[var(--ink)]">
-							<CheckCircle2 className="w-4 h-4 text-[var(--success)]" />
-							Clé enregistrée :{" "}
-							<code className="text-xs text-[var(--ink-muted)]">
-								{settings.stripeKeyPreview}
-							</code>
-						</div>
-						<div className="flex flex-wrap gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => handleToggle(!enabled)}
-							>
-								{enabled ? "Désactiver" : "Activer"}
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={handleRemove}
-								className="gap-1.5 text-[var(--destructive)] hover:text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
-							>
-								<Trash2 className="w-3.5 h-3.5" />
-								Supprimer la clé
-							</Button>
-						</div>
-					</div>
-				) : null}
-
-				{/* Formulaire clé */}
-				<div className="space-y-3">
-					<div className="space-y-1.5">
-						<Label
-							htmlFor="stripe-key"
-							className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]"
-						>
-							{configured ? "Remplacer la clé secrète" : "Clé secrète Stripe"}
-						</Label>
-						<Input
-							id="stripe-key"
-							type="password"
-							value={key}
-							onChange={(e) => setKey(e.target.value)}
-							placeholder="sk_test_..."
-							className="h-11 font-mono text-sm"
-							autoComplete="off"
-						/>
-						<p className="text-xs text-[var(--ink-ghost)]">
-							Dashboard Stripe → Développeurs → Clés API → <em>Clé secrète</em>.
-							Commence par <code>sk_test_</code> (test) ou <code>sk_live_</code>{" "}
-							(réel). Elle est stockée chiffrée et n'est jamais réaffichée.
-						</p>
-					</div>
-
-					<div className="space-y-1.5">
-						<Label
-							htmlFor="stripe-currency"
-							className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]"
-						>
-							Devise
-						</Label>
-						<select
-							id="stripe-currency"
-							value={currency}
-							onChange={(e) => setCurrency(e.target.value)}
-							className={cn(
-								"w-full h-10 px-3 text-sm rounded-[var(--radius-md)]",
-								"border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--ink)]",
-								"focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20",
-							)}
-						>
-							<option value="eur">EUR (€)</option>
-							<option value="usd">USD ($)</option>
-							<option value="chf">CHF</option>
-							<option value="gbp">GBP (£)</option>
-						</select>
-					</div>
-
-					<Button
-						onClick={handleSave}
-						disabled={saving || !key.trim()}
-						className="h-10"
-						style={{ background: "var(--grad-brand)" }}
-					>
-						{saving ? (
-							<Loader2 className="w-4 h-4 animate-spin" />
-						) : configured ? (
-							"Remplacer la clé"
-						) : (
-							"Enregistrer et activer"
-						)}
-					</Button>
-				</div>
-
-				{/* Webhook — détection automatique des paiements */}
-				{configured && (
-					<div className="space-y-3 border-t border-[var(--border)] pt-5">
-						<div>
-							<h3 className="text-sm font-semibold text-[var(--ink)]">
-								Paiements automatiques (webhook)
-							</h3>
-							<p className="text-xs text-[var(--ink-muted)] mt-0.5">
-								Sans webhook, les liens fonctionnent mais tu dois marquer le
-								lead « gagné » à la main. Avec, c'est automatique.
+						<div className="flex-1 min-w-0">
+							<div className="flex items-center gap-2">
+								<h2 className="text-base font-semibold font-[family-name:var(--font-display)] text-[var(--ink)]">
+									Stripe
+								</h2>
+								{configured && (
+									<span
+										className={cn(
+											"text-[11px] font-medium px-2 py-0.5 rounded-full",
+											enabled
+												? "bg-[var(--success-soft)] text-[var(--success)]"
+												: "bg-[var(--surface-muted)] text-[var(--ink-ghost)]",
+										)}
+									>
+										{enabled ? "Actif" : "Inactif"}
+									</span>
+								)}
+								{configured && (
+									<span
+										className={cn(
+											"text-[11px] font-medium px-2 py-0.5 rounded-full",
+											isLive
+												? "bg-[var(--destructive-soft)] text-[var(--destructive)]"
+												: "bg-[var(--warning-soft)] text-[var(--warning)]",
+										)}
+									>
+										{isLive ? "Mode réel" : "Mode test"}
+									</span>
+								)}
+							</div>
+							<p className="text-sm text-[var(--ink-muted)] mt-0.5">
+								Génère des liens de paiement directement depuis la fiche d'un
+								lead.
 							</p>
 						</div>
+					</div>
 
-						<div className="space-y-1.5">
-							<Label className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
-								1. URL à coller dans Stripe
-							</Label>
-							<div className="flex gap-2">
-								<code className="flex-1 text-xs bg-[var(--surface-raised)] border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2.5 break-all">
-									{webhookUrl}
+					{/* État actuel */}
+					{settings === undefined ? (
+						<p className="text-sm text-[var(--ink-ghost)]">Chargement…</p>
+					) : configured ? (
+						<div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] p-4 space-y-3">
+							<div className="flex items-center gap-2 text-sm text-[var(--ink)]">
+								<CheckCircle2 className="w-4 h-4 text-[var(--success)]" />
+								Clé enregistrée :{" "}
+								<code className="text-xs text-[var(--ink-muted)]">
+									{settings.stripeKeyPreview}
 								</code>
+							</div>
+							<div className="flex flex-wrap gap-2">
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={() => {
-										navigator.clipboard.writeText(webhookUrl);
-										toast.success("URL copiée");
-									}}
+									onClick={() => handleToggle(!enabled)}
 								>
-									Copier
+									{enabled ? "Désactiver" : "Activer"}
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={handleRemove}
+									className="gap-1.5 text-[var(--destructive)] hover:text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+								>
+									<Trash2 className="w-3.5 h-3.5" />
+									Supprimer la clé
 								</Button>
 							</div>
+						</div>
+					) : null}
+
+					{/* Formulaire clé */}
+					<div className="space-y-3">
+						<div className="space-y-1.5">
+							<Label
+								htmlFor="stripe-key"
+								className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]"
+							>
+								{configured ? "Remplacer la clé secrète" : "Clé secrète Stripe"}
+							</Label>
+							<Input
+								id="stripe-key"
+								type="password"
+								value={key}
+								onChange={(e) => setKey(e.target.value)}
+								placeholder="sk_test_..."
+								className="h-11 font-mono text-sm"
+								autoComplete="off"
+							/>
 							<p className="text-xs text-[var(--ink-ghost)]">
-								Stripe → Développeurs → Webhooks → <em>Add endpoint</em> → colle
-								cette URL, puis sélectionne l'événement{" "}
-								<code>payment_intent.succeeded</code>.
+								Dashboard Stripe → Développeurs → Clés API →{" "}
+								<em>Clé secrète</em>. Commence par <code>sk_test_</code> (test)
+								ou <code>sk_live_</code> (réel). Elle est stockée chiffrée et
+								n'est jamais réaffichée.
 							</p>
 						</div>
 
 						<div className="space-y-1.5">
 							<Label
-								htmlFor="stripe-whsec"
+								htmlFor="stripe-currency"
 								className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]"
 							>
-								2. Secret de signature
+								Devise
 							</Label>
-							<div className="flex gap-2">
-								<Input
-									id="stripe-whsec"
-									type="password"
-									value={whsec}
-									onChange={(e) => setWhsec(e.target.value)}
-									placeholder="whsec_..."
-									className="h-10 font-mono text-sm"
-									autoComplete="off"
-								/>
-								<Button
-									variant="outline"
-									onClick={handleSaveWebhook}
-									disabled={savingHook || !whsec.trim()}
-								>
-									{savingHook ? (
-										<Loader2 className="w-4 h-4 animate-spin" />
-									) : (
-										"Enregistrer"
-									)}
-								</Button>
-							</div>
-							<p className="text-xs text-[var(--ink-ghost)]">
-								{settings?.stripeWebhookConfigured
-									? "✅ Webhook configuré — les paiements marquent le lead comme gagné automatiquement."
-									: "Stripe l'affiche après création de l'endpoint (Signing secret)."}
-							</p>
+							<select
+								id="stripe-currency"
+								value={currency}
+								onChange={(e) => setCurrency(e.target.value)}
+								className={cn(
+									"w-full h-10 px-3 text-sm rounded-[var(--radius-md)]",
+									"border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--ink)]",
+									"focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20",
+								)}
+							>
+								<option value="eur">EUR (€)</option>
+								<option value="usd">USD ($)</option>
+								<option value="chf">CHF</option>
+								<option value="gbp">GBP (£)</option>
+							</select>
 						</div>
+
+						<Button
+							onClick={handleSave}
+							disabled={saving || !key.trim()}
+							className="h-10"
+							style={{ background: "var(--grad-brand)" }}
+						>
+							{saving ? (
+								<Loader2 className="w-4 h-4 animate-spin" />
+							) : configured ? (
+								"Remplacer la clé"
+							) : (
+								"Enregistrer et activer"
+							)}
+						</Button>
 					</div>
-				)}
 
-				<p className="text-xs text-[var(--ink-ghost)] border-t border-[var(--border)] pt-4">
-					💡 Commence en <strong>mode test</strong> (<code>sk_test_</code>) pour
-					vérifier le parcours sans encaisser d'argent réel. Les liens générés
-					n'expirent pas.
-				</p>
-			</motion.div>
+					{/* Webhook — détection automatique des paiements */}
+					{configured && (
+						<div className="space-y-3 border-t border-[var(--border)] pt-5">
+							<div>
+								<h3 className="text-sm font-semibold text-[var(--ink)]">
+									Paiements automatiques (webhook)
+								</h3>
+								<p className="text-xs text-[var(--ink-muted)] mt-0.5">
+									Sans webhook, les liens fonctionnent mais tu dois marquer le
+									lead « gagné » à la main. Avec, c'est automatique.
+								</p>
+							</div>
 
-			<EmailProviderCard />
-			<FathomCard />
+							<div className="space-y-1.5">
+								<Label className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+									1. URL à coller dans Stripe
+								</Label>
+								<div className="flex gap-2">
+									<code className="flex-1 text-xs bg-[var(--surface-raised)] border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2.5 break-all">
+										{webhookUrl}
+									</code>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											navigator.clipboard.writeText(webhookUrl);
+											toast.success("URL copiée");
+										}}
+									>
+										Copier
+									</Button>
+								</div>
+								<p className="text-xs text-[var(--ink-ghost)]">
+									Stripe → Développeurs → Webhooks → <em>Add endpoint</em> →
+									colle cette URL, puis sélectionne l'événement{" "}
+									<code>payment_intent.succeeded</code>.
+								</p>
+							</div>
+
+							<div className="space-y-1.5">
+								<Label
+									htmlFor="stripe-whsec"
+									className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]"
+								>
+									2. Secret de signature
+								</Label>
+								<div className="flex gap-2">
+									<Input
+										id="stripe-whsec"
+										type="password"
+										value={whsec}
+										onChange={(e) => setWhsec(e.target.value)}
+										placeholder="whsec_..."
+										className="h-10 font-mono text-sm"
+										autoComplete="off"
+									/>
+									<Button
+										variant="outline"
+										onClick={handleSaveWebhook}
+										disabled={savingHook || !whsec.trim()}
+									>
+										{savingHook ? (
+											<Loader2 className="w-4 h-4 animate-spin" />
+										) : (
+											"Enregistrer"
+										)}
+									</Button>
+								</div>
+								<p className="text-xs text-[var(--ink-ghost)]">
+									{settings?.stripeWebhookConfigured
+										? "✅ Webhook configuré — les paiements marquent le lead comme gagné automatiquement."
+										: "Stripe l'affiche après création de l'endpoint (Signing secret)."}
+								</p>
+							</div>
+						</div>
+					)}
+
+					<p className="text-xs text-[var(--ink-ghost)] border-t border-[var(--border)] pt-4">
+						💡 Commence en <strong>mode test</strong> (<code>sk_test_</code>)
+						pour vérifier le parcours sans encaisser d'argent réel. Les liens
+						générés n'expirent pas.
+					</p>
+				</motion.div>
+			)}
+
+			{isAdmin && <EmailProviderCard />}
+			{isAdmin && <FathomCard />}
 			<AutomationsCard />
 			<SystemeioCard />
-			<CalendlyImportCard />
+			{isAdmin && <CalendlyImportCard />}
 		</div>
 	);
 }

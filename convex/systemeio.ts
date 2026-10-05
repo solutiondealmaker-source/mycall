@@ -15,7 +15,7 @@ import {
 	mutation,
 	query,
 } from "./_generated/server";
-import { requireAdmin } from "./lib/auth";
+import { requireIntegrations } from "./lib/auth";
 
 const API = "https://api.systeme.io/api";
 const DEFAULT_PREFIX = "Mycall";
@@ -121,7 +121,7 @@ async function call<T>(
 export const getStatus = query({
 	args: {},
 	handler: async (ctx) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		const s = await ctx.db
 			.query("integrationSettings")
 			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
@@ -138,7 +138,7 @@ export const getStatus = query({
 
 export const assertAdminInternal = internalQuery({
 	args: {},
-	handler: async (ctx) => await requireAdmin(ctx),
+	handler: async (ctx) => await requireIntegrations(ctx),
 });
 
 export const saveInternal = internalMutation({
@@ -191,7 +191,7 @@ export const connect = action({
 export const updatePrefix = mutation({
 	args: { tagPrefix: v.string() },
 	handler: async (ctx, { tagPrefix }) => {
-		const userId = await requireAdmin(ctx);
+		const userId = await requireIntegrations(ctx);
 		const existing = await ctx.db
 			.query("integrationSettings")
 			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))
@@ -210,7 +210,7 @@ export const updatePrefix = mutation({
 export const disconnect = mutation({
 	args: {},
 	handler: async (ctx) => {
-		const userId = await requireAdmin(ctx);
+		const userId = await requireIntegrations(ctx);
 		const existing = await ctx.db
 			.query("integrationSettings")
 			.withIndex("by_singleton", (q) => q.eq("singleton", "default"))

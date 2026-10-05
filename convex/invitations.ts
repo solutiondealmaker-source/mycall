@@ -30,6 +30,7 @@ const ROLE_VALIDATOR = v.union(
 	v.literal("ops"),
 	v.literal("admin"),
 	v.literal("viewer"),
+	v.literal("integrations"),
 );
 
 function normalize(email: string): string {

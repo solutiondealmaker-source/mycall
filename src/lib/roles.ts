@@ -4,6 +4,9 @@
 // ROLE_COPY dans convex/emails.ts, qui décrit les mêmes rôles dans l'email
 // d'invitation.
 
+// Proposés à l'invitation. Volontairement court : un menu de huit rôles dont
+// deux servent réellement ne fait qu'égarer celui qui invite. Les autres rôles
+// restent valables pour les comptes qui les portent déjà (voir LEGACY_ROLES).
 export const INVITABLE_ROLES = [
 	{
 		value: "closer",
@@ -12,15 +15,10 @@ export const INVITABLE_ROLES = [
 			"Mène les rendez-vous. Ne voit que les leads qui lui sont assignés.",
 	},
 	{
-		value: "setter",
-		label: "Setter",
+		value: "integrations",
+		label: "Intégrations",
 		description:
-			"Qualifie les prospects. Ne voit que les leads qui lui sont assignés.",
-	},
-	{
-		value: "coach",
-		label: "Coach",
-		description: "Accompagne l'équipe sur les leads qui lui sont assignés.",
+			"Branche les outils externes : Make, Zapier, webhooks, systeme.io. Ne voit ni les leads, ni les appels, ni les chiffres.",
 	},
 	{
 		value: "viewer",
@@ -29,26 +27,21 @@ export const INVITABLE_ROLES = [
 			"Voit tous les rendez-vous, les leads et le chiffre d'affaires, sans rien pouvoir modifier. Pour un accompagnant externe.",
 	},
 	{
-		value: "head_of_sales",
-		label: "Head of Sales",
-		description: "Pilote l'équipe. Accès complet, y compris en modification.",
-	},
-	{
-		value: "ceo",
-		label: "CEO",
-		description: "Accès complet à l'espace de travail.",
-	},
-	{
-		value: "ops",
-		label: "Ops",
-		description: "Administre la configuration et les intégrations.",
-	},
-	{
 		value: "admin",
 		label: "Admin",
 		description: "Accès complet, y compris la gestion des membres.",
 	},
 ] as const;
+
+// Plus proposés, mais toujours portés par des comptes existants : il faut
+// pouvoir les nommer à l'écran.
+const LEGACY_ROLES: Record<string, string> = {
+	setter: "Setter",
+	coach: "Coach",
+	head_of_sales: "Head of Sales",
+	ceo: "CEO",
+	ops: "Ops",
+};
 
 export type RoleValue = (typeof INVITABLE_ROLES)[number]["value"];
 
@@ -81,6 +74,23 @@ export function canAdminister(profile: ProfileLike): boolean {
 	return profile.isAdmin === true || ADMIN_ROLES.has(profile.role ?? "");
 }
 
+// Branchement des outils externes. Miroir de canManageIntegrations() côté
+// serveur, qui reste l'autorité.
+export function canManageIntegrations(profile: ProfileLike): boolean {
+	if (!profile) return false;
+	return canAdminister(profile) || profile.role === "integrations";
+}
+
+// Un compte qui ne fait que brancher des outils : tout le reste lui est fermé,
+// et l'interface le lui dit au lieu de le laisser buter sur une erreur.
+export function isIntegrationsOnly(profile: ProfileLike): boolean {
+	return Boolean(profile) && profile?.role === "integrations";
+}
+
 export function roleLabel(role: string | null | undefined): string {
-	return INVITABLE_ROLES.find((r) => r.value === role)?.label ?? "—";
+	return (
+		INVITABLE_ROLES.find((r) => r.value === role)?.label ??
+		LEGACY_ROLES[role ?? ""] ??
+		"—"
+	);
 }
