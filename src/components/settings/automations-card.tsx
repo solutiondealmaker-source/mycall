@@ -23,7 +23,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { canAdminister } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const API_BASE = `${(process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "").replace(/\/$/, "")}/api/v1`;
@@ -418,10 +417,6 @@ function EndpointRow({ endpoint }: { endpoint: Doc<"webhookEndpoints"> }) {
 // ─── Entrant ─────────────────────────────────────────────────────────────────
 
 function ApiKeysSection() {
-	const profile = useQuery(api.users.getMyProfile);
-	// Une clé lit et écrit tous les leads hors de l'interface : sa création reste
-	// à l'administration. Le rôle « intégrations » s'en sert sans la fabriquer.
-	const isAdmin = canAdminister(profile);
 	const keys = useQuery(api.automations.listApiKeys, {});
 	const create = useAction(api.automations.createApiKey);
 	const revoke = useMutation(api.automations.revokeApiKey);
@@ -497,36 +492,28 @@ function ApiKeysSection() {
 				</div>
 			)}
 
-			{!isAdmin && (
-				<p className="text-xs text-[var(--ink-muted)]">
-					Demande une clé à l'administration : elle seule peut en créer.
-				</p>
-			)}
-
-			{isAdmin && (
-				<div className="flex gap-2">
-					<Input
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						placeholder="Nom de la clé (ex. Make)"
-						className="h-9 text-sm"
-					/>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleCreate}
-						disabled={creating || !name.trim()}
-						className="gap-1.5 shrink-0 h-9"
-					>
-						{creating ? (
-							<Loader2 className="w-3.5 h-3.5 animate-spin" />
-						) : (
-							<KeyRound className="w-3.5 h-3.5" />
-						)}
-						Créer une clé
-					</Button>
-				</div>
-			)}
+			<div className="flex gap-2">
+				<Input
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					placeholder="Nom de la clé (ex. Make)"
+					className="h-9 text-sm"
+				/>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={handleCreate}
+					disabled={creating || !name.trim()}
+					className="gap-1.5 shrink-0 h-9"
+				>
+					{creating ? (
+						<Loader2 className="w-3.5 h-3.5 animate-spin" />
+					) : (
+						<KeyRound className="w-3.5 h-3.5" />
+					)}
+					Créer une clé
+				</Button>
+			</div>
 
 			{keys && keys.length > 0 && (
 				<ul className="rounded-[var(--radius-md)] border border-[var(--border)] divide-y divide-[var(--border)]">
@@ -541,22 +528,20 @@ function ApiKeysSection() {
 										: " · jamais utilisée"}
 								</p>
 							</div>
-							{isAdmin && (
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => {
-										if (!window.confirm(`Révoquer la clé « ${k.name} » ?`))
-											return;
-										revoke({ id: k._id as Id<"apiKeys"> })
-											.then(() => toast.success("Clé révoquée"))
-											.catch((err) => toast.error(errorText(err)));
-									}}
-									className="text-[var(--destructive)] hover:text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
-								>
-									Révoquer
-								</Button>
-							)}
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									if (!window.confirm(`Révoquer la clé « ${k.name} » ?`))
+										return;
+									revoke({ id: k._id as Id<"apiKeys"> })
+										.then(() => toast.success("Clé révoquée"))
+										.catch((err) => toast.error(errorText(err)));
+								}}
+								className="text-[var(--destructive)] hover:text-[var(--destructive)] hover:bg-[var(--destructive-soft)]"
+							>
+								Révoquer
+							</Button>
 						</li>
 					))}
 				</ul>

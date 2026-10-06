@@ -409,13 +409,6 @@ export const assertAdminInternal = internalQuery({
 	handler: async (ctx) => await requireIntegrations(ctx),
 });
 
-// Une clé d'API lit et écrit TOUS les leads hors de l'interface : sa création
-// reste donc réservée à l'administration, même pour le rôle « intégrations ».
-export const assertStrictAdminInternal = internalQuery({
-	args: {},
-	handler: async (ctx) => await requireAdmin(ctx),
-});
-
 // Action : le secret de signature est tiré d'un générateur cryptographique.
 export const createEndpoint = action({
 	args: {
@@ -616,7 +609,7 @@ export const createApiKey = action({
 	args: { name: v.string() },
 	handler: async (ctx, { name }): Promise<{ key: string }> => {
 		const userId = await ctx.runQuery(
-			internal.automations.assertStrictAdminInternal,
+			internal.automations.assertAdminInternal,
 			{},
 		);
 		const label = name.trim();
@@ -636,7 +629,7 @@ export const createApiKey = action({
 export const revokeApiKey = mutation({
 	args: { id: v.id("apiKeys") },
 	handler: async (ctx, { id }) => {
-		await requireAdmin(ctx);
+		await requireIntegrations(ctx);
 		await ctx.db.patch(id, { revokedAt: Date.now() });
 		return { ok: true };
 	},
