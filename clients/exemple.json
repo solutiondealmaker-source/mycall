@@ -4,5 +4,6 @@
 	"domain": "rdv.domaine-du-client.fr",
 	"adminEmail": "xxx@domaine-du-client.fr",
 	"fromEmail": "Nom du business <rdv@domaine-du-client.fr>",
-	"brandColor": "#192A3B"
+	"brandColor": "#192A3B",
+	"seats": 3
 }

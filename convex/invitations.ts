@@ -18,6 +18,7 @@ import {
 	query,
 } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
+import { seatUsage } from "./seats";
 
 const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 jours
 
@@ -177,6 +178,10 @@ export const create = mutation({
 			throw new ConvexError("Adresse email invalide");
 		}
 
+		// Le plafond ne s'applique qu'aux nouvelles invitations : compléter celle
+		// d'une personne déjà invitée n'ajoute personne à l'équipe.
+		const seats = await seatUsage(ctx);
+
 		const requestedEvents: Id<"events">[] = [];
 		for (const id of new Set(eventIds ?? [])) {
 			if (!(await ctx.db.get(id)))
@@ -213,6 +218,12 @@ export const create = mutation({
 			}
 			await ctx.db.patch(pending._id, { eventIds: [...current, ...added] });
 			return { ok: true, invitationId: pending._id, merged: true };
+		}
+
+		if (seats.full) {
+			throw new ConvexError(
+				`Tous les sièges sont occupés (${seats.used}/${seats.limit}). Contacte ton conseiller pour en ajouter.`,
+			);
 		}
 
 		const now = Date.now();

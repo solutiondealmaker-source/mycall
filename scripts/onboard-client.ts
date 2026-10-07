@@ -63,6 +63,9 @@ interface ClientConfig {
 	fromEmail: string; // "Nom <rdv@client.com>" — domaine vérifié dans Resend
 	brandColor?: string; // défaut : marine Mycall
 	tagline?: string; // aucun slogan si absent
+	// Comptes autorisés sur l'instance, invitations en attente comprises.
+	// Défaut : 3. « illimité » lève le plafond.
+	seats?: number | "illimité";
 	// true si le client a son propre compte Resend. Sa clé ne s'écrit jamais
 	// dans ce fichier (il est versionné) : elle se colle à la main dans Convex.
 	// Par défaut, ton compte Resend — un compte, plusieurs domaines.
@@ -329,6 +332,7 @@ async function configure() {
 	// Lue directement par la bibliothèque d'authentification : sans elle, le
 	// lien de réinitialisation de mot de passe ne peut pas être construit.
 	setTarget("SITE_URL", appUrl);
+	setTarget("SEAT_LIMIT", String(cfg.seats ?? 3));
 	setTarget("BRAND_NAME", cfg.name);
 	setTarget("BRAND_COLOR", cfg.brandColor ?? "#192A3B");
 	if (cfg.tagline) setTarget("BRAND_TAGLINE", cfg.tagline);

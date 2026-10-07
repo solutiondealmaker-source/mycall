@@ -47,6 +47,7 @@ import type * as migrations from "../migrations.js";
 import type * as migrationsNode from "../migrationsNode.js";
 import type * as notifyDispatch from "../notifyDispatch.js";
 import type * as partialLeads from "../partialLeads.js";
+import type * as seats from "../seats.js";
 import type * as seed from "../seed.js";
 import type * as sequences from "../sequences.js";
 import type * as setupStatus from "../setupStatus.js";
@@ -102,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   migrationsNode: typeof migrationsNode;
   notifyDispatch: typeof notifyDispatch;
   partialLeads: typeof partialLeads;
+  seats: typeof seats;
   seed: typeof seed;
   sequences: typeof sequences;
   setupStatus: typeof setupStatus;

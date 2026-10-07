@@ -12,6 +12,7 @@ import { AvatarCircle } from "@/components/dashboard/avatar-circle";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteMemberDialog } from "@/components/settings/team/invite-member-dialog";
 import { PendingInvitations } from "@/components/settings/team/pending-invitations";
+import { SeatBanner } from "@/components/settings/team/seat-banner";
 import { SenderEmailLine } from "@/components/settings/team/sender-email-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,8 @@ export default function TeamPage() {
 					</div>
 				}
 			/>
+
+			<SeatBanner />
 
 			<PendingInvitations />
 
