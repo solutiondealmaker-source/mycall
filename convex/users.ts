@@ -198,3 +198,64 @@ export const removeUser = mutation({
 		return { ok: true };
 	},
 });
+
+// ============================================================
+// État de configuration de chaque membre — page Équipe.
+// ============================================================
+//
+// Un closer mal configuré ne reçoit aucun rendez-vous, et personne ne s'en
+// aperçoit avant qu'un prospect se plaigne de ne voir aucun créneau. L'admin
+// voit donc, pour chaque membre : ses agendas Google, ceux qui bloquent ses
+// créneaux, et ses disponibilités. Aucune donnée de prospect n'apparaît ici.
+
+export const getTeamSetup = query({
+	args: {},
+	handler: async (ctx) => {
+		await requireAdmin(ctx);
+		const users = await ctx.db.query("users").collect();
+		const rows = [];
+		for (const u of users) {
+			const accounts = await ctx.db
+				.query("userGoogleAccounts")
+				.withIndex("by_userId", (q) => q.eq("userId", u._id))
+				.collect();
+			const settings = await ctx.db
+				.query("userCalendarSettings")
+				.withIndex("by_userId", (q) => q.eq("userId", u._id))
+				.first();
+			const availability = await ctx.db
+				.query("userAvailability")
+				.withIndex("by_userId", (q) => q.eq("userId", u._id))
+				.collect();
+			const hosting = await ctx.db
+				.query("eventHosts")
+				.withIndex("by_userId", (q) => q.eq("userId", u._id))
+				.collect();
+
+			const minutes = availability.reduce(
+				(sum, r) => sum + Math.max(0, r.endMinute - r.startMinute),
+				0,
+			);
+			rows.push({
+				userId: u._id,
+				name: u.name ?? null,
+				email: u.email ?? null,
+				role: u.role ?? null,
+				accounts: accounts.map((a) => ({
+					email: a.googleEmail,
+					invalid: Boolean(a.invalidSince),
+				})),
+				writerCalendar: settings?.writerCalendarId ?? null,
+				conflictCalendars: (settings?.conflictCheckCalendars ?? []).map(
+					(c) => c.calendarSummary ?? c.calendarId,
+				),
+				availabilityDays: new Set(availability.map((r) => r.dayOfWeek)).size,
+				availabilityHours: Math.round((minutes / 60) * 10) / 10,
+				eventCount: hosting.length,
+			});
+		}
+		return rows.sort((a, b) =>
+			(a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""),
+		);
+	},
+});

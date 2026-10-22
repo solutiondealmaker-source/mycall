@@ -14,6 +14,7 @@ import { InviteMemberDialog } from "@/components/settings/team/invite-member-dia
 import { PendingInvitations } from "@/components/settings/team/pending-invitations";
 import { SeatBanner } from "@/components/settings/team/seat-banner";
 import { SenderEmailLine } from "@/components/settings/team/sender-email-dialog";
+import { TeamSetup } from "@/components/settings/team/team-setup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -130,6 +131,8 @@ export default function TeamPage() {
 			/>
 
 			<SeatBanner />
+
+			<TeamSetup />
 
 			<PendingInvitations />
 

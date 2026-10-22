@@ -90,7 +90,11 @@ export async function GET(request: Request) {
 	authUrl.searchParams.set("response_type", "code");
 	authUrl.searchParams.set("scope", GOOGLE_SCOPES);
 	authUrl.searchParams.set("access_type", "offline");
-	authUrl.searchParams.set("prompt", "consent"); // force refresh_token (G2)
+	// consent  → force le refresh_token (G2).
+	// select_account → impose le sélecteur de compte. Sans lui, Google réutilise
+	// en silence la session déjà ouverte : qui veut rattacher un SECOND agenda
+	// reconnecte le premier sans comprendre pourquoi rien ne change.
+	authUrl.searchParams.set("prompt", "consent select_account");
 	authUrl.searchParams.set("state", state);
 
 	return NextResponse.redirect(authUrl.toString());
