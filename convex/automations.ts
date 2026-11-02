@@ -304,7 +304,20 @@ export const deliver = internalAction({
 			internal.automations.getEndpointInternal,
 			{ id: args.endpointId },
 		);
-		if (!endpoint?.active) return;
+		// Désactivé entre l'émission et l'envoi : on le trace au lieu d'abandonner
+		// en silence, sinon l'événement disparaît sans la moindre explication.
+		if (!endpoint) return;
+		if (!endpoint.active) {
+			await ctx.runMutation(internal.automations.recordDeliveryInternal, {
+				endpointId: args.endpointId,
+				eventId: args.eventId,
+				eventType: args.type,
+				status: "failed",
+				attempt: args.attempt,
+				error: "Webhook désactivé au moment de l'envoi",
+			});
+			return;
+		}
 
 		const payload = await ctx.runQuery(
 			internal.automations.buildPayloadInternal,

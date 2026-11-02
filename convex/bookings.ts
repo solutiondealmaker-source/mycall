@@ -1652,6 +1652,17 @@ export const setOutcome = mutation({
 		// Re-derive lead phase
 		await _applyAutoPhase(ctx, booking.leadId);
 
+		// Une annulation saisie depuis le CRM vaut une annulation : les outils
+		// branchés attendent booking.cancelled, qu'elle vienne du prospect ou de
+		// l'équipe.
+		if (args.tenue === "annule" && booking.tenue !== "annule") {
+			await emitEvent(ctx, "booking.cancelled", {
+				bookingId: args.bookingId,
+				leadId: booking.leadId,
+				data: { cancelled_by: "equipe" },
+			});
+		}
+
 		await emitEvent(ctx, "booking.outcome_updated", {
 			bookingId: args.bookingId,
 			leadId: booking.leadId,
