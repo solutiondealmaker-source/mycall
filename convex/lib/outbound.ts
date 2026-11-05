@@ -27,11 +27,13 @@ export async function emitEvent(
 	const data = ref.data ? JSON.stringify(ref.data) : undefined;
 
 	const endpoints = await ctx.db.query("webhookEndpoints").collect();
+	let scheduled = 0;
 	for (const endpoint of endpoints) {
 		if (!endpoint.active) continue;
 		if (!endpoint.events.includes(type) && !endpoint.events.includes("*")) {
 			continue;
 		}
+		scheduled++;
 		await ctx.scheduler.runAfter(0, internal.automations.deliver, {
 			endpointId: endpoint._id,
 			eventId,
@@ -44,6 +46,12 @@ export async function emitEvent(
 			attempt: 1,
 		});
 	}
+	// Trace d'émission : sans elle, un événement qui ne trouve aucun webhook
+	// abonné est indiscernable d'un événement jamais émis, et le diagnostic
+	// s'arrête là.
+	console.log(
+		`[outbound] ${type} — ${endpoints.length} webhook(s) enregistré(s), ${scheduled} envoi(s) programmé(s)`,
+	);
 
 	if (ref.leadId) {
 		const settings = await ctx.db
