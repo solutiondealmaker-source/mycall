@@ -120,15 +120,34 @@ async function personOf(ctx: QueryCtx, id: Id<"users"> | undefined) {
 	return u ? { name: u.name ?? null, email: u.email ?? null } : null;
 }
 
-async function leadPayload(ctx: QueryCtx, lead: Doc<"leads">) {
-	let formAnswers: unknown = null;
-	if (lead.formAnswers) {
-		try {
-			formAnswers = JSON.parse(lead.formAnswers);
-		} catch {
-			formAnswers = lead.formAnswers;
-		}
+// Les réponses au formulaire voyagent en LISTE, pas en objet : les libellés de
+// questions sont écrits par le client, donc accentués (« La compétence… »), et
+// Convex refuse un nom de champ non-ASCII dans une valeur de retour. L'objet
+// faisait échouer l'envoi de TOUT événement portant un lead ayant répondu.
+function formAnswersList(raw: string | undefined) {
+	if (!raw) return [];
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return [{ question: "", answer: raw }];
 	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+	return Object.entries(parsed as Record<string, unknown>).map(
+		([question, answer]) => ({
+			question,
+			answer:
+				answer === null || answer === undefined
+					? ""
+					: typeof answer === "string"
+						? answer
+						: JSON.stringify(answer),
+		}),
+	);
+}
+
+async function leadPayload(ctx: QueryCtx, lead: Doc<"leads">) {
+	const formAnswers = formAnswersList(lead.formAnswers);
 	const event = lead.eventId ? await ctx.db.get(lead.eventId) : null;
 	const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(" ");
 	return {
@@ -528,7 +547,9 @@ export const sendTest = action({
 				utm_campaign: null,
 				utm_term: null,
 				utm_content: null,
-				form_answers: { "Votre objectif": "Exemple de réponse" },
+				form_answers: [
+					{ question: "Votre objectif", answer: "Exemple de réponse" },
+				],
 				amount_contracted: null,
 				converted_at: null,
 				unsubscribed: false,
