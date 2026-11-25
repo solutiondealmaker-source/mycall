@@ -6,6 +6,7 @@
 		"setup": "bun scripts/setup.ts",
 		"onboard": "bun scripts/onboard-client.ts",
 		"seats": "bun scripts/seats.ts",
+		"status": "bun scripts/status.ts",
 		"dev": "next dev",
 		"convex": "bunx convex dev",
 		"build": "next build",

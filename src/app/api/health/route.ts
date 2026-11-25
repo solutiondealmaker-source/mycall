@@ -35,6 +35,11 @@ export async function GET() {
 			status: "ok",
 			time: now,
 			convex,
+			// Version réellement servie : c'est ce qui permet de voir, depuis
+			// l'extérieur, si une instance cliente est restée sur une ancienne
+			// construction. Vercel renseigne ces variables à la construction.
+			version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+			deployedAt: process.env.VERCEL_DEPLOYMENT_ID ? now : null,
 		},
 		{ status: 200 },
 	);
