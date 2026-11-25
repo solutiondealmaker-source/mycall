@@ -6,6 +6,7 @@ import { LeadsDataTable } from "@/components/crm/leads-data-table";
 import { LeadsKpiStrip } from "@/components/crm/leads-kpi-strip";
 import {
 	type LeadSegment,
+	LeadsSegmentChips,
 	LeadsSegmentRail,
 } from "@/components/crm/leads-segment-rail";
 import {
@@ -74,11 +75,11 @@ export default function CrmPage() {
 
 			<div className="flex flex-col h-full">
 				{/* Header zone with padding */}
-				<div className="px-8 py-6 border-b border-[var(--border)]">
+				<div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-[var(--border)]">
 					<PageHeader
 						title="CRM"
 						description="Gérez vos contacts et suivez votre pipeline de vente"
-						className="mb-6"
+						className="mb-4 sm:mb-6"
 					/>
 					<LeadsKpiStrip />
 				</div>
@@ -89,6 +90,8 @@ export default function CrmPage() {
 
 					{/* Main content */}
 					<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+						<LeadsSegmentChips active={segment} onChange={setSegment} />
+
 						<LeadsToolbar
 							search={search}
 							onSearchChange={setSearch}

@@ -12,7 +12,7 @@ import {
 	MapPin,
 	Timer,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SafeHtml } from "@/components/ui/safe-html";
@@ -115,6 +115,11 @@ export function CalendarStep({
 	const [viewYear, setViewYear] = useState(now.getFullYear());
 	const [viewMonth, setViewMonth] = useState(now.getMonth());
 	const [selectedDay, setSelectedDay] = useState<number | null>(null);
+	// Sur téléphone, les créneaux s'affichent SOUS le calendrier, hors écran :
+	// sans ce recentrage, le prospect choisit un jour et croit qu'il ne se passe
+	// rien. Sur grand écran ils sont déjà visibles, on ne bouge donc pas la page.
+	const slotsRef = useRef<HTMLDivElement | null>(null);
+
 	const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
 	const [isConfirming, setIsConfirming] = useState(false);
 
@@ -151,6 +156,16 @@ export function CalendarStep({
 	useEffect(() => {
 		if (selectedSlot !== null) setTimerActive(true);
 	}, [selectedSlot]);
+
+	// Les créneaux s'affichent sous le calendrier : hors écran sur un téléphone.
+	// On attend qu'ils soient chargés — viser pendant le « Chargement… » ferait
+	// défiler vers un bloc d'une ligne, aussitôt repoussé par la vraie liste.
+	useEffect(() => {
+		if (selectedDay === null || !slots || slots.length === 0) return;
+		if (typeof window === "undefined") return;
+		if (window.matchMedia("(min-width: 768px)").matches) return;
+		slotsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+	}, [selectedDay, slots]);
 
 	useEffect(() => {
 		if (!timerActive || secondsLeft <= 0) return;
@@ -418,7 +433,7 @@ export function CalendarStep({
 									}}
 									disabled={!isAvail || isPast}
 									className={cn(
-										"h-9 w-full rounded-[var(--radius-sm)] text-sm font-medium transition-all duration-100",
+										"h-11 md:h-9 w-full rounded-[var(--radius-sm)] text-sm font-medium transition-all duration-100",
 										isSelected &&
 											"bg-[var(--brand)] text-white shadow-[var(--shadow-brand)]",
 										isAvail &&
@@ -471,7 +486,7 @@ export function CalendarStep({
 
 					{/* Slots */}
 					{selectedDay !== null && (
-						<>
+						<div ref={slotsRef} className="scroll-mt-4">
 							<motion.div
 								key={`slots-${selectedDay}`}
 								initial={{ opacity: 0, y: 6 }}
@@ -533,7 +548,7 @@ export function CalendarStep({
 																	size="sm"
 																	onClick={handleConfirm}
 																	disabled={isConfirming}
-																	className="h-8 shrink-0 font-semibold"
+																	className="h-10 md:h-8 shrink-0 font-semibold"
 																	style={{ background: "var(--grad-brand)" }}
 																>
 																	{isConfirming ? (
@@ -551,7 +566,7 @@ export function CalendarStep({
 																type="button"
 																onClick={() => setSelectedSlot(slot.time)}
 																className={cn(
-																	"w-full h-10 rounded-[var(--radius-md)] border text-sm font-medium",
+																	"w-full h-11 md:h-10 rounded-[var(--radius-md)] border text-sm font-medium",
 																	"transition-all duration-100",
 																	"border-[var(--border)] text-[var(--ink)]",
 																	"hover:bg-[var(--brand-soft)] hover:border-[var(--brand)] hover:text-[var(--brand)]",
@@ -567,7 +582,7 @@ export function CalendarStep({
 									</motion.div>
 								)}
 							</motion.div>
-						</>
+						</div>
 					)}
 
 					{selectedDay === null && availableDays !== undefined && (

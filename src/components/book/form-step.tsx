@@ -164,7 +164,7 @@ function QuestionField({
 				placeholder="Votre réponse..."
 				rows={3}
 				className={cn(
-					"w-full px-3 py-2 text-sm rounded-[var(--radius-md)] border resize-none",
+					"w-full px-3 py-2.5 text-base md:text-sm rounded-[var(--radius-md)] border resize-none",
 					"bg-[var(--surface)] text-[var(--ink)] placeholder:text-[var(--ink-ghost)]",
 					"focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]",
 					"transition-all duration-150",
@@ -188,7 +188,7 @@ function QuestionField({
 							type="button"
 							onClick={() => onChange(opt)}
 							className={cn(
-								"px-3 py-2.5 rounded-[var(--radius-md)] text-sm font-medium text-left",
+								"px-3 py-3 md:py-2.5 min-h-11 md:min-h-0 rounded-[var(--radius-md)] text-sm font-medium text-left",
 								"border transition-all duration-150",
 								isSelected
 									? "bg-[var(--brand-soft)] border-[var(--brand)] text-[var(--brand)]"
@@ -222,7 +222,7 @@ function QuestionField({
 								}
 							}}
 							className={cn(
-								"px-3 py-2.5 rounded-[var(--radius-md)] text-sm font-medium text-left",
+								"px-3 py-3 md:py-2.5 min-h-11 md:min-h-0 rounded-[var(--radius-md)] text-sm font-medium text-left",
 								"border transition-all duration-150 flex items-center gap-2",
 								isSelected
 									? "bg-[var(--brand-soft)] border-[var(--brand)] text-[var(--brand)]"
@@ -271,7 +271,7 @@ function QuestionField({
 			onChange={(e) => onChange(e.target.value)}
 			placeholder="Votre réponse..."
 			className={cn(
-				"w-full h-10 px-3 text-sm rounded-[var(--radius-md)] border",
+				"w-full h-11 md:h-10 px-3 text-base md:text-sm rounded-[var(--radius-md)] border",
 				"bg-[var(--surface)] text-[var(--ink)] placeholder:text-[var(--ink-ghost)]",
 				"focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]",
 				"transition-all duration-150",
@@ -389,7 +389,7 @@ export function FormStep({
 
 	const inputClass = (field: keyof FieldErrors) =>
 		cn(
-			"w-full h-10 px-3 text-sm rounded-[var(--radius-md)] border",
+			"w-full h-11 md:h-10 px-3 text-base md:text-sm rounded-[var(--radius-md)] border",
 			"bg-[var(--surface)] text-[var(--ink)] placeholder:text-[var(--ink-ghost)]",
 			"focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20 focus:border-[var(--brand)]",
 			"transition-all duration-150",

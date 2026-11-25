@@ -78,7 +78,7 @@ export function ShowUpWidget({ eventIds, startMs, endMs }: ShowUpWidgetProps) {
 			description="Ratio d'appels tenus par rapport au nombre d'appels planifiés."
 			footer={
 				data ? (
-					<div className="grid grid-cols-4 gap-4">
+					<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
 						<MiniKpi label="Tenu" value={data.tenu} dot={SHOWUP_COLORS.tenu} />
 						<MiniKpi
 							label="No-show"

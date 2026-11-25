@@ -82,60 +82,62 @@ export default function NotificationsSettingsPage() {
 							Aucun email envoyé pour l&apos;instant
 						</div>
 					) : (
-						<table className="w-full text-sm">
-							<thead>
-								<tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
-									<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
-										Type
-									</th>
-									<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
-										Destinataire
-									</th>
-									<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
-										Statut
-									</th>
-									<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
-										Date
-									</th>
-									<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
-										Erreur
-									</th>
-								</tr>
-							</thead>
-							<tbody>
-								{(logs as Doc<"notificationLogs">[]).map((log, i) => (
-									<motion.tr
-										key={log._id}
-										initial={{ opacity: 0 }}
-										animate={{ opacity: 1 }}
-										transition={{ delay: i * 0.02 }}
-										className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)] transition-colors"
-									>
-										<td className="px-4 py-3 text-[var(--ink-muted)] font-medium">
-											{TYPE_LABELS[log.type] ?? log.type}
-										</td>
-										<td className="px-4 py-3 text-[var(--ink)] font-mono text-xs max-w-[200px] truncate">
-											{log.recipient}
-										</td>
-										<td className="px-4 py-3">
-											<StatusBadge status={log.status} />
-										</td>
-										<td className="px-4 py-3 text-[var(--ink-muted)] text-xs">
-											{new Date(log.sentAt).toLocaleString("fr-FR", {
-												day: "2-digit",
-												month: "2-digit",
-												year: "2-digit",
-												hour: "2-digit",
-												minute: "2-digit",
-											})}
-										</td>
-										<td className="px-4 py-3 text-xs text-red-400 max-w-[180px] truncate">
-											{log.error ?? "—"}
-										</td>
-									</motion.tr>
-								))}
-							</tbody>
-						</table>
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm min-w-[640px]">
+								<thead>
+									<tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
+										<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
+											Type
+										</th>
+										<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
+											Destinataire
+										</th>
+										<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
+											Statut
+										</th>
+										<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
+											Date
+										</th>
+										<th className="text-left px-4 py-3 text-xs font-semibold text-[var(--ink-subtle)] uppercase tracking-wider">
+											Erreur
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									{(logs as Doc<"notificationLogs">[]).map((log, i) => (
+										<motion.tr
+											key={log._id}
+											initial={{ opacity: 0 }}
+											animate={{ opacity: 1 }}
+											transition={{ delay: i * 0.02 }}
+											className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)] transition-colors"
+										>
+											<td className="px-4 py-3 text-[var(--ink-muted)] font-medium">
+												{TYPE_LABELS[log.type] ?? log.type}
+											</td>
+											<td className="px-4 py-3 text-[var(--ink)] font-mono text-xs max-w-[200px] truncate">
+												{log.recipient}
+											</td>
+											<td className="px-4 py-3">
+												<StatusBadge status={log.status} />
+											</td>
+											<td className="px-4 py-3 text-[var(--ink-muted)] text-xs">
+												{new Date(log.sentAt).toLocaleString("fr-FR", {
+													day: "2-digit",
+													month: "2-digit",
+													year: "2-digit",
+													hour: "2-digit",
+													minute: "2-digit",
+												})}
+											</td>
+											<td className="px-4 py-3 text-xs text-red-400 max-w-[180px] truncate">
+												{log.error ?? "—"}
+											</td>
+										</motion.tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 					)}
 				</div>
 			</section>

@@ -17,7 +17,7 @@ const STEPS = [
 export function BookingStepper({ current }: StepperProps) {
 	return (
 		<div
-			className="flex items-center justify-center w-full max-w-2xl mx-auto"
+			className="flex items-center justify-center w-full max-w-2xl mx-auto min-w-0"
 			role="list"
 			aria-label="Étapes de réservation"
 		>
@@ -50,6 +50,7 @@ export function BookingStepper({ current }: StepperProps) {
 							<span
 								className={cn(
 									"text-sm font-semibold whitespace-nowrap transition-colors duration-200",
+									isActive ? "inline" : "hidden sm:inline",
 									isDone || isActive
 										? "text-[var(--ink)]"
 										: "text-[var(--ink-ghost)]",
@@ -61,7 +62,7 @@ export function BookingStepper({ current }: StepperProps) {
 						</div>
 
 						{i < STEPS.length - 1 && (
-							<div className="flex-1 h-px mx-5 relative overflow-hidden bg-[var(--border)] max-w-[120px]">
+							<div className="flex-1 h-px mx-3 sm:mx-5 relative overflow-hidden bg-[var(--border)] max-w-[120px]">
 								<motion.div
 									animate={{ scaleX: current > 1 ? 1 : 0 }}
 									initial={{ scaleX: 0 }}

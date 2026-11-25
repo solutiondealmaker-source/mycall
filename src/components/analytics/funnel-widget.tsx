@@ -45,7 +45,7 @@ export function FunnelWidget({ eventIds, startMs, endMs }: FunnelWidgetProps) {
 			title="Funnel de réservation d'appel"
 			description="Nombre de vues du calendrier, de contacts capturés, d'appels créés et leurs taux de conversion."
 			footer={
-				<div className="grid grid-cols-3 gap-4">
+				<div className="grid grid-cols-3 gap-2 sm:gap-4">
 					<MiniKpi label="Vues page" value={data.pageViews} />
 					<MiniKpi label="Contacts" value={data.contacts} />
 					<MiniKpi label="Appels créés" value={data.calls} />

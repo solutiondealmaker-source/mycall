@@ -113,7 +113,7 @@ export function LeadsSegmentRail({ active, onChange }: LeadsSegmentRailProps) {
 		<motion.aside
 			animate={{ width: collapsed ? 56 : 260 }}
 			transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-			className="relative flex flex-col shrink-0 border-r border-[var(--border)] bg-[var(--surface)] overflow-hidden"
+			className="relative hidden md:flex flex-col shrink-0 border-r border-[var(--border)] bg-[var(--surface)] overflow-hidden"
 		>
 			<div className="flex flex-col gap-0.5 p-3 flex-1 overflow-y-auto overflow-x-hidden pt-4">
 				{/* All */}
@@ -269,6 +269,52 @@ function SectionLabel({
 					<div className="w-4 h-px bg-[var(--border)] mx-auto" />
 				)}
 			</AnimatePresence>
+		</div>
+	);
+}
+
+// Version téléphone : la colonne de gauche prend la moitié de l'écran sous
+// 768 px. Les mêmes segments défilent donc horizontalement, au-dessus de la
+// liste, en pastilles assez hautes pour le doigt.
+export function LeadsSegmentChips({ active, onChange }: LeadsSegmentRailProps) {
+	const counts = useQuery(api.leads.countByStatus, {});
+	const items: { id: LeadSegment; label: string }[] = [
+		{ id: "all", label: "Tous" },
+		...STAGE_ITEMS.map((i) => ({ id: i.id, label: i.label })),
+		...SMART_VIEWS.map((i) => ({ id: i.id, label: i.label })),
+	];
+
+	return (
+		<div className="md:hidden border-b border-[var(--border)] bg-[var(--surface)]">
+			<div className="flex gap-2 overflow-x-auto px-4 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				{items.map((item) => {
+					const count =
+						item.id === "all"
+							? (counts?.total as number | undefined)
+							: (counts?.[item.id] as number | undefined);
+					const isActive = active === item.id;
+					return (
+						<button
+							key={item.id}
+							type="button"
+							onClick={() => onChange(item.id)}
+							className={cn(
+								"shrink-0 h-9 px-3 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
+								isActive
+									? "bg-[var(--brand)] text-white"
+									: "bg-[var(--surface-raised)] text-[var(--ink-muted)] border border-[var(--border)]",
+							)}
+						>
+							{item.label}
+							{count !== undefined && count > 0 && (
+								<span className={cn("ml-1.5", !isActive && "opacity-60")}>
+									{count}
+								</span>
+							)}
+						</button>
+					);
+				})}
+			</div>
 		</div>
 	);
 }

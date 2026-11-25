@@ -144,7 +144,7 @@ export default function TeamPage() {
 				className="card-premium overflow-hidden"
 			>
 				{/* Header */}
-				<div className="grid grid-cols-[1fr_160px_100px_40px] gap-3 px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-raised)]">
+				<div className="hidden sm:grid grid-cols-[1fr_160px_100px_40px] gap-3 px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-raised)]">
 					<span className="text-[11px] font-semibold text-[var(--ink-ghost)] uppercase tracking-wide">
 						Membre
 					</span>
@@ -189,7 +189,7 @@ export default function TeamPage() {
 								<div
 									key={user._id}
 									className={cn(
-										"grid grid-cols-[1fr_160px_100px_40px] gap-3 items-center px-5 py-4",
+										"grid grid-cols-1 sm:grid-cols-[1fr_160px_100px_40px] gap-3 items-start sm:items-center px-4 sm:px-5 py-4",
 										"transition-colors duration-150 hover:bg-[var(--surface-raised)]",
 										isCurrentUser && "bg-[var(--brand-soft)]",
 									)}

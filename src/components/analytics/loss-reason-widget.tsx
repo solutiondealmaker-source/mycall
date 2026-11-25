@@ -76,7 +76,7 @@ export function LossReasonWidget({
 			description="Affiche une répartition des raisons de non-vente."
 			footer={
 				data ? (
-					<div className="grid grid-cols-4 gap-4">
+					<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
 						<MiniKpi
 							label="Follow-Up"
 							value={data.breakdown.followUp}

@@ -446,6 +446,31 @@
   );
 }
 
+/* Sur téléphone, trois voiles de 800 px floutés à 100 px et animés en continu
+   coûtent plus cher que tout le reste de la page : le GPU recompose un calque
+   flouté à chaque image, et le défilement saccade. On garde un seul voile,
+   immobile : la nuance de fond reste, le coût disparaît. */
+@media (max-width: 767px) {
+  .mesh-blob {
+    animation: none !important;
+    will-change: auto;
+  }
+
+  .mesh-blob-b,
+  .mesh-blob-c {
+    display: none;
+  }
+}
+
+/* Même raison : une animation infinie n'a aucune valeur pour qui a demandé
+   moins de mouvement, et la règle globale ne fait que la raccourcir. */
+@media (prefers-reduced-motion: reduce) {
+  .mesh-blob {
+    animation: none !important;
+    will-change: auto;
+  }
+}
+
 /* ─────────────────────────────────────────────
    TOP ACCENT LINE — signature Endosia
 ───────────────────────────────────────────── */

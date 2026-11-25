@@ -113,7 +113,7 @@ export function OutcomeWidget({
 			}
 			footer={
 				data ? (
-					<div className="grid grid-cols-4 gap-4">
+					<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
 						<MiniKpi label="Total planifié" value={data.totalPlanned} />
 						<MiniKpi label="Ventes" value={data.won} dot={OUTCOME_COLORS.won} />
 						<MiniKpi

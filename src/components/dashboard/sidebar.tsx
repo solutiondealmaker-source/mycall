@@ -42,14 +42,14 @@ import { cn } from "@/lib/utils";
 // globale (canReadAll côté serveur). Les afficher à un Closer ou un Setter
 // revient à lui proposer un lien qui lève une erreur : le serveur refuse, et
 // la page n'a plus rien à rendre.
-type NavEntry = {
+export type NavEntry = {
 	label: string;
 	href: string;
 	icon: React.ElementType;
 	readAll?: boolean;
 };
 
-const NAV_ITEMS: NavEntry[] = [
+export const NAV_ITEMS: NavEntry[] = [
 	{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 	{ label: "Événements", href: "/events", icon: Calendar, readAll: true },
 	{ label: "CRM", href: "/crm", icon: Users },
@@ -57,7 +57,7 @@ const NAV_ITEMS: NavEntry[] = [
 	{ label: "Analytics", href: "/analytics", icon: BarChart3, readAll: true },
 ];
 
-const NAV_BOTTOM = [
+export const NAV_BOTTOM = [
 	{ label: "Paramètres", href: "/settings", icon: Settings },
 ] as const;
 
@@ -69,7 +69,7 @@ const SIDEBAR_COLLAPSED = 64;
 
 // ─── NavItem ───────────────────────────────────────────────────────────────────
 
-interface NavItemProps {
+export interface NavItemProps {
 	href: string;
 	icon: React.ElementType;
 	label: string;
@@ -79,7 +79,7 @@ interface NavItemProps {
 	locked?: boolean;
 }
 
-function NavItem({
+export function NavItem({
 	href,
 	icon: Icon,
 	label,
@@ -211,7 +211,9 @@ export function Sidebar() {
 			animate={{ width: collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED }}
 			transition={{ type: "spring", stiffness: 500, damping: 35 }}
 			className={cn(
-				"relative flex flex-col h-screen",
+				// Sous 768 px, elle mangerait l'écran : la navigation passe alors
+				// par MobileNav (barre haute + tiroir).
+				"relative hidden md:flex flex-col h-screen",
 				"bg-[var(--surface)] border-r border-[var(--border)]",
 				"sticky top-0 shrink-0 overflow-hidden",
 				"z-20",
