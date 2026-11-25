@@ -109,7 +109,7 @@ export default function NotificationsSettingsPage() {
 											key={log._id}
 											initial={{ opacity: 0 }}
 											animate={{ opacity: 1 }}
-											transition={{ delay: i * 0.02 }}
+											transition={{ delay: Math.min(i, 8) * 0.02 }}
 											className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)] transition-colors"
 										>
 											<td className="px-4 py-3 text-[var(--ink-muted)] font-medium">

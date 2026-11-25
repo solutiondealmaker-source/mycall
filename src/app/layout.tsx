@@ -18,6 +18,16 @@ const manrope = Manrope({
 	weight: ["400", "500", "600", "700"],
 });
 
+// Origine de la base Convex, pour la préconnexion.
+const convexOrigin = (() => {
+	try {
+		const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+		return url ? new URL(url).origin : null;
+	} catch {
+		return null;
+	}
+})();
+
 export const metadata: Metadata = {
 	title: `${BRAND_NAME} — Booking & CRM`,
 	description: "Plateforme de booking et CRM pour closers.",
@@ -40,6 +50,16 @@ export default function RootLayout({
 				lang="fr"
 				className={`${outfit.variable} ${manrope.variable} h-full antialiased`}
 			>
+				<head>
+					{/* La connexion à la base part avant même que le JavaScript ne
+					    s'exécute : autant de gagné sur l'affichage des données. */}
+					{convexOrigin && (
+						<>
+							<link rel="preconnect" href={convexOrigin} crossOrigin="" />
+							<link rel="dns-prefetch" href={convexOrigin} />
+						</>
+					)}
+				</head>
 				<body className="min-h-full bg-[var(--background)] text-[var(--ink)]">
 					<Providers>
 						<TooltipProvider delayDuration={300}>{children}</TooltipProvider>

@@ -46,7 +46,13 @@ const rowVariants: Variants = {
 	visible: (i: number) => ({
 		opacity: 1,
 		y: 0,
-		transition: { duration: 0.15, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] },
+		// Plafonné : au-delà des premières cartes, le décalage ne sert plus
+		// l'effet de cascade, il fait seulement attendre.
+		transition: {
+			duration: 0.15,
+			delay: Math.min(i, 6) * 0.03,
+			ease: [0.16, 1, 0.3, 1],
+		},
 	}),
 };
 

@@ -65,12 +65,21 @@ export function LeadsDataTable({
 		} catch {}
 	}, [sorting]);
 
-	const isSearching = search.length >= 2;
+	// La recherche parcourt tous les leads côté serveur : lancée à chaque
+	// frappe, elle rejoue la requête six ou sept fois pour un mot. On attend
+	// 250 ms de silence, le temps qu'une saisie se termine.
+	const [debouncedSearch, setDebouncedSearch] = useState(search);
+	useEffect(() => {
+		const id = window.setTimeout(() => setDebouncedSearch(search), 250);
+		return () => window.clearTimeout(id);
+	}, [search]);
+
+	const isSearching = debouncedSearch.length >= 2;
 
 	// Search mode — non-paginated
 	const searchResults = useQuery(
 		api.leads.searchTopN,
-		isSearching ? { q: search, limit: 50 } : "skip",
+		isSearching ? { q: debouncedSearch, limit: 50 } : "skip",
 	);
 
 	// Paginated mode — normal browsing

@@ -338,16 +338,15 @@
   animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.animate-blob-a {
-  animation: blob-drift-a 25s ease-in-out infinite;
-}
-
-.animate-blob-b {
-  animation: blob-drift-b 30s ease-in-out infinite;
-}
-
+/* Les trois voiles de fond restent, immobiles.
+   Animés, ils forçaient le navigateur à recomposer en continu trois calques
+   de 800 px floutés à 100 px, sur chaque page et pendant tout le temps passé
+   dessus : c est le poste de dépense graphique le plus lourd de l interface,
+   pour une dérive de quelques pixels que personne ne remarque. */
+.animate-blob-a,
+.animate-blob-b,
 .animate-blob-c {
-  animation: blob-drift-c 20s ease-in-out infinite;
+  animation: none;
 }
 
 .animate-shimmer {
@@ -374,7 +373,6 @@
   filter: blur(100px);
   mix-blend-mode: multiply;
   pointer-events: none;
-  will-change: transform;
 }
 
 .dark .mesh-blob {
@@ -451,25 +449,13 @@
    flouté à chaque image, et le défilement saccade. On garde un seul voile,
    immobile : la nuance de fond reste, le coût disparaît. */
 @media (max-width: 767px) {
-  .mesh-blob {
-    animation: none !important;
-    will-change: auto;
-  }
-
   .mesh-blob-b,
   .mesh-blob-c {
     display: none;
   }
 }
 
-/* Même raison : une animation infinie n'a aucune valeur pour qui a demandé
-   moins de mouvement, et la règle globale ne fait que la raccourcir. */
-@media (prefers-reduced-motion: reduce) {
-  .mesh-blob {
-    animation: none !important;
-    will-change: auto;
-  }
-}
+
 
 /* ─────────────────────────────────────────────
    TOP ACCENT LINE — signature Endosia
