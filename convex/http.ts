@@ -595,7 +595,11 @@ function tagsField(body: Body): string[] | undefined {
 
 function errorMessage(err: unknown): string {
 	const msg = err instanceof Error ? err.message : String(err);
-	return /Uncaught Error: ([^\n]+)/.exec(msg)?.[1] ?? msg.split("\n")[0];
+	// Convex préfixe « Uncaught Error: » ou « Uncaught ConvexError: » : l'outil
+	// qui nous interroge n'a que faire de notre plomberie, il veut la phrase.
+	return (
+		/Uncaught (?:Convex)?Error: ([^\n]+)/.exec(msg)?.[1] ?? msg.split("\n")[0]
+	);
 }
 
 const API_DOC = {
@@ -605,6 +609,13 @@ const API_DOC = {
 		"GET /api/v1/me": "Vérifie la clé.",
 		"GET /api/v1/events": "Événements actifs et leurs liens de réservation.",
 		"GET /api/v1/leads?email=|phone=|id=": "Retrouve un lead.",
+		"GET /api/v1/leads/list":
+			"Liste les leads. Filtres : status, closer_email, event_slug, updated_since (ms), limit (200 max), cursor. Renvoie next_cursor tant qu il reste des pages.",
+		"GET /api/v1/bookings":
+			"Rendez-vous d un prospect (id | email | phone) ou d une période (from, to en ms). Filtres : event_slug, status, limit.",
+		"GET /api/v1/events/{slug}":
+			"Réglages complets d un événement : durée, marges, mode d attribution, hôtes et leurs priorités, questions.",
+		"GET /api/v1/team": "Membres de l équipe et leurs rôles.",
 		"POST /api/v1/leads":
 			"Crée ou complète un lead (email ou phone requis). Champs : first_name, last_name, email, phone, status, source, tags, note, closer_email, event_slug, amount, utm_source, utm_medium, utm_campaign, utm_term, utm_content.",
 		"POST /api/v1/leads/notes":
@@ -644,6 +655,67 @@ http.route({
 					),
 				});
 			}
+			if (path === "/api/v1/leads/list") {
+				const num = (key: string) => {
+					const raw = url.searchParams.get(key);
+					if (raw === null) return undefined;
+					const n = Number(raw);
+					if (!Number.isFinite(n)) {
+						throw new Error(`${key} doit être un nombre.`);
+					}
+					return n;
+				};
+				return json(
+					await ctx.runQuery(internal.automations.apiListLeadsInternal, {
+						status: url.searchParams.get("status") ?? undefined,
+						closerEmail: url.searchParams.get("closer_email") ?? undefined,
+						eventSlug: url.searchParams.get("event_slug") ?? undefined,
+						updatedSince: num("updated_since"),
+						limit: num("limit"),
+						cursor: url.searchParams.get("cursor") ?? undefined,
+					}),
+				);
+			}
+
+			if (path === "/api/v1/bookings") {
+				const num = (key: string) => {
+					const raw = url.searchParams.get(key);
+					if (raw === null) return undefined;
+					const n = Number(raw);
+					if (!Number.isFinite(n)) {
+						throw new Error(`${key} doit être un nombre en millisecondes.`);
+					}
+					return n;
+				};
+				return json(
+					await ctx.runQuery(internal.automations.apiListBookingsInternal, {
+						leadId: url.searchParams.get("id") ?? undefined,
+						email: url.searchParams.get("email") ?? undefined,
+						phone: url.searchParams.get("phone") ?? undefined,
+						eventSlug: url.searchParams.get("event_slug") ?? undefined,
+						from: num("from"),
+						to: num("to"),
+						status: url.searchParams.get("status") ?? undefined,
+						limit: num("limit"),
+					}),
+				);
+			}
+
+			if (path === "/api/v1/team") {
+				return json(
+					await ctx.runQuery(internal.automations.apiListTeamInternal, {}),
+				);
+			}
+
+			const eventSlug = /^\/api\/v1\/events\/(.+)$/.exec(path)?.[1];
+			if (eventSlug) {
+				return json({
+					event: await ctx.runQuery(internal.automations.apiGetEventInternal, {
+						slug: decodeURIComponent(eventSlug),
+					}),
+				});
+			}
+
 			if (path === "/api/v1/leads") {
 				const ref = {
 					leadId: url.searchParams.get("id") ?? undefined,

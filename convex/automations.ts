@@ -993,3 +993,274 @@ export const apiListEventsInternal = internalQuery({
 			}));
 	},
 });
+
+// ============================================================
+// API ENTRANTE — lecture (Atlas et consorts)
+// ============================================================
+//
+// Un outil externe pilote l'instance à distance : il lui faut des listes, pas
+// seulement la recherche d'une fiche à la fois. Les sorties reprennent la même
+// forme que les webhooks, pour qu'un intégrateur n'ait qu'un format à lire.
+
+const API_PAGE_MAX = 200;
+
+const BOOKING_STATUSES = [
+	"confirmed",
+	"cancelled",
+	"rescheduled",
+	"no_show",
+	"completed",
+] as const;
+
+type BookingStatus = (typeof BOOKING_STATUSES)[number];
+
+function parseBookingStatus(raw: string): BookingStatus {
+	const value = raw.trim().toLowerCase();
+	const match = BOOKING_STATUSES.find((s) => s === value);
+	if (!match) {
+		throw new ConvexError(
+			`Statut de rendez-vous inconnu : ${raw}. Attendu : ${BOOKING_STATUSES.join(", ")}.`,
+		);
+	}
+	return match;
+}
+
+function clampLimit(limit: number | undefined): number {
+	if (!limit || !Number.isFinite(limit)) return 50;
+	return Math.min(Math.max(Math.round(limit), 1), API_PAGE_MAX);
+}
+
+export const apiListLeadsInternal = internalQuery({
+	args: {
+		status: optionalString,
+		closerEmail: optionalString,
+		eventSlug: optionalString,
+		updatedSince: v.optional(v.number()),
+		limit: v.optional(v.number()),
+		cursor: optionalString,
+	},
+	handler: async (ctx, args) => {
+		const status = args.status ? parseStatus(args.status) : undefined;
+		if (args.status && !status) {
+			throw new ConvexError(`Statut inconnu : ${args.status}`);
+		}
+
+		let closerUserId: Id<"users"> | undefined;
+		if (args.closerEmail) {
+			const closer = await ctx.db
+				.query("users")
+				.withIndex("email", (q) =>
+					q.eq("email", args.closerEmail?.trim().toLowerCase()),
+				)
+				.first();
+			if (!closer) {
+				throw new ConvexError(`Aucun membre avec l'email ${args.closerEmail}.`);
+			}
+			closerUserId = closer._id;
+		}
+
+		// L'index par statut évite de parcourir toute la table quand le filtre
+		// est posé, ce qui est le cas le plus fréquent.
+		const base = status
+			? ctx.db
+					.query("leads")
+					.withIndex("by_status", (q) => q.eq("status", status))
+			: ctx.db.query("leads");
+
+		const page = await base.order("desc").paginate({
+			numItems: clampLimit(args.limit),
+			cursor: args.cursor ?? null,
+		});
+
+		const rows = [];
+		for (const lead of page.page) {
+			if (closerUserId && lead.closerUserId !== closerUserId) continue;
+			if (args.eventSlug && lead.eventSlug !== args.eventSlug) continue;
+			if (
+				args.updatedSince !== undefined &&
+				(lead.lastInteractionAt ?? lead._creationTime) < args.updatedSince
+			) {
+				continue;
+			}
+			rows.push(await leadPayload(ctx, lead));
+		}
+
+		return {
+			leads: rows,
+			next_cursor: page.isDone ? null : page.continueCursor,
+			has_more: !page.isDone,
+		};
+	},
+});
+
+export const apiListBookingsInternal = internalQuery({
+	args: {
+		leadId: optionalString,
+		email: optionalString,
+		phone: optionalString,
+		eventSlug: optionalString,
+		from: v.optional(v.number()),
+		to: v.optional(v.number()),
+		status: optionalString,
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const limit = clampLimit(args.limit);
+
+		// Rendez-vous d'un prospect : on passe par son lead, bien plus direct
+		// qu'un balayage par date.
+		if (args.leadId || args.email || args.phone) {
+			const lead = await findLead(ctx, {
+				leadId: args.leadId,
+				email: args.email,
+				phone: args.phone,
+			});
+			if (!lead) throw new ConvexError("Lead introuvable.");
+			const rows = await ctx.db
+				.query("bookings")
+				.withIndex("by_leadId_startTime", (q) => q.eq("leadId", lead._id))
+				.order("desc")
+				.take(limit);
+			return {
+				bookings: await Promise.all(rows.map((b) => bookingPayload(ctx, b))),
+			};
+		}
+
+		const from = args.from ?? Date.now() - 30 * 86_400_000;
+		const to = args.to ?? Date.now() + 90 * 86_400_000;
+		if (to < from)
+			throw new ConvexError("La date de fin précède la date de début.");
+
+		let event: Doc<"events"> | null = null;
+		if (args.eventSlug) {
+			event = await ctx.db
+				.query("events")
+				.withIndex("by_slug", (q) => q.eq("slug", args.eventSlug?.trim() ?? ""))
+				.first();
+			if (!event)
+				throw new ConvexError(`Événement introuvable : ${args.eventSlug}`);
+		}
+
+		// Chaque chemin passe par un index couvrant la fenêtre de dates : sans
+		// ça, la requête balaierait toute la table à chaque appel d'Atlas.
+		let rows: Doc<"bookings">[];
+		if (event) {
+			rows = await ctx.db
+				.query("bookings")
+				.withIndex("by_eventId_startTime", (q) =>
+					q
+						.eq("eventId", event._id)
+						.gte("startTime", from)
+						.lte("startTime", to),
+				)
+				.order("desc")
+				.take(limit);
+		} else if (args.status) {
+			const status = parseBookingStatus(args.status);
+			rows = await ctx.db
+				.query("bookings")
+				.withIndex("by_status_startTime", (q) =>
+					q.eq("status", status).gte("startTime", from).lte("startTime", to),
+				)
+				.order("desc")
+				.take(limit);
+		} else {
+			// Sans filtre : on interroge chaque statut par son index, puis on
+			// fusionne. Plus de requêtes, mais aucune lecture inutile.
+			const perStatus = await Promise.all(
+				BOOKING_STATUSES.map((status) =>
+					ctx.db
+						.query("bookings")
+						.withIndex("by_status_startTime", (q) =>
+							q
+								.eq("status", status)
+								.gte("startTime", from)
+								.lte("startTime", to),
+						)
+						.order("desc")
+						.take(limit),
+				),
+			);
+			rows = perStatus
+				.flat()
+				.sort((a, b) => b.startTime - a.startTime)
+				.slice(0, limit);
+		}
+
+		return {
+			bookings: await Promise.all(rows.map((b) => bookingPayload(ctx, b))),
+		};
+	},
+});
+
+export const apiGetEventInternal = internalQuery({
+	args: { slug: v.string() },
+	handler: async (ctx, { slug }) => {
+		const event = await ctx.db
+			.query("events")
+			.withIndex("by_slug", (q) => q.eq("slug", slug.trim()))
+			.first();
+		if (!event) throw new ConvexError(`Événement introuvable : ${slug}`);
+
+		const hosts = await ctx.db
+			.query("eventHosts")
+			.withIndex("by_eventId", (q) => q.eq("eventId", event._id))
+			.collect();
+		const questions = await ctx.db
+			.query("eventQuestions")
+			.withIndex("by_eventId_order", (q) => q.eq("eventId", event._id))
+			.collect();
+
+		return {
+			name: event.name,
+			slug: event.slug,
+			active: event.isActive,
+			duration_minutes: event.durationMinutes,
+			timezone: event.timezone,
+			slot_increment_minutes: event.slotIncrementMinutes ?? null,
+			buffer_before_minutes: event.bufferBeforeMinutes ?? 0,
+			buffer_after_minutes: event.bufferAfterMinutes ?? 0,
+			minimum_notice_hours: event.minimumNoticeHours ?? 0,
+			range_days: event.rangeDays ?? null,
+			business_days_only: event.businessDaysOnly ?? false,
+			allow_reschedule: event.allowReschedule,
+			prevent_double_booking: event.preventDoubleBooking ?? false,
+			// manual = ordre de priorité choisi ; round_robin = chacun son tour.
+			assignment_mode: event.priorityMode,
+			source: event.tagSource ?? null,
+			booking_url: `${SITE_URL}/book/${event.slug}`,
+			hosts: await Promise.all(
+				hosts.map(async (h) => {
+					const user = await ctx.db.get(h.userId);
+					return {
+						email: user?.email ?? null,
+						name: user?.name ?? null,
+						priority: h.priority,
+					};
+				}),
+			),
+			questions: questions.map((q) => ({
+				label: q.label,
+				type: q.type,
+				required: q.required,
+				options: q.options ?? [],
+			})),
+		};
+	},
+});
+
+export const apiListTeamInternal = internalQuery({
+	args: {},
+	handler: async (ctx) => {
+		const users = await ctx.db.query("users").collect();
+		return {
+			members: users.map((u) => ({
+				id: u._id,
+				name: u.name ?? null,
+				email: u.email ?? null,
+				role: u.role ?? null,
+				is_admin: Boolean(u.isAdmin),
+			})),
+		};
+	},
+});
