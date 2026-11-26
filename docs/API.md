@@ -64,10 +64,24 @@ Rendez-vous d'un prospect, ou d'une période.
 | `event_slug` | Limite à un événement |
 | `status` | `confirmed`, `cancelled`, `rescheduled`, `no_show`, `completed` |
 | `limit` | 50 par défaut, 200 au maximum |
+| `cursor` | Page suivante, avec la valeur de `next_cursor` |
 
-Chaque rendez-vous porte ses dates, son fuseau, le lien de visio, le closer, la
-présence (`attendance`), l'issue (`outcome`), le montant, et les liens
-d'annulation et de replanification.
+Chaque rendez-vous porte ses dates, son fuseau, le lien de visio, le closer, le
+setter, la présence (`attendance`), l'issue (`outcome`), le montant, les liens
+d'annulation et de replanification, et :
+
+- `lead_id` : le prospect rattaché, pour recouper avec `/leads/list` ;
+- `rescheduled_from` et `rescheduled_at` : date d'origine et moment du
+  déplacement, quand le rendez-vous a été replanifié.
+
+Les personnes (`host`, `closer`, `setter`) portent `id`, `name` et `email`.
+Le setter est celui attribué au prospect, ou à défaut celui défini sur
+l'événement.
+
+**Un curseur ne vaut que pour des filtres identiques.** Changer `status`,
+`event_slug` ou la fenêtre de dates invalide la pagination en cours. Sans
+`from` ni `to`, la fenêtre par défaut couvre 30 jours en arrière et 91 en
+avant, arrondie à la journée.
 
 ### `GET /events`
 Événements actifs et leurs liens de réservation.
@@ -78,7 +92,12 @@ Réglages complets : durée, marges, préavis, mode d'attribution
 (`high`, `medium`, `low`), et questions du formulaire.
 
 ### `GET /team`
-Membres, rôles, et qui est administrateur.
+Membres (`id`, `name`, `email`, `role`, `is_admin`, `active`) et invitations
+en attente, dans `pending_invitations`.
+
+Mycall ne désactive pas un membre : il est présent, ou retiré de l'équipe.
+`active` vaut donc toujours `true` aujourd'hui ; le champ existe pour qu'une
+désactivation future n'oblige personne à changer son code.
 
 ## Écriture
 

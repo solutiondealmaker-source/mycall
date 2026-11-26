@@ -612,10 +612,11 @@ const API_DOC = {
 		"GET /api/v1/leads/list":
 			"Liste les leads. Filtres : status, closer_email, event_slug, updated_since (ms), limit (200 max), cursor. Renvoie next_cursor tant qu il reste des pages.",
 		"GET /api/v1/bookings":
-			"Rendez-vous d un prospect (id | email | phone) ou d une période (from, to en ms). Filtres : event_slug, status, limit.",
+			"Rendez-vous d un prospect (id | email | phone) ou d une période (from, to en ms). Filtres : event_slug, status, limit, cursor. Un curseur ne vaut que pour des filtres identiques. Chaque rendez-vous porte lead_id, setter, host, rescheduled_from et rescheduled_at.",
 		"GET /api/v1/events/{slug}":
 			"Réglages complets d un événement : durée, marges, mode d attribution, hôtes et leurs priorités, questions.",
-		"GET /api/v1/team": "Membres de l équipe et leurs rôles.",
+		"GET /api/v1/team":
+			"Membres (id, role, is_admin, active) et invitations en attente.",
 		"POST /api/v1/leads":
 			"Crée ou complète un lead (email ou phone requis). Champs : first_name, last_name, email, phone, status, source, tags, note, closer_email, event_slug, amount, utm_source, utm_medium, utm_campaign, utm_term, utm_content.",
 		"POST /api/v1/leads/notes":
@@ -697,6 +698,7 @@ http.route({
 						to: num("to"),
 						status: url.searchParams.get("status") ?? undefined,
 						limit: num("limit"),
+						cursor: url.searchParams.get("cursor") ?? undefined,
 					}),
 				);
 			}

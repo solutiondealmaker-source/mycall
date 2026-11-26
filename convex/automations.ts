@@ -117,7 +117,7 @@ const iso = (ms: number | undefined) =>
 async function personOf(ctx: QueryCtx, id: Id<"users"> | undefined) {
 	if (!id) return null;
 	const u = await ctx.db.get(id);
-	return u ? { name: u.name ?? null, email: u.email ?? null } : null;
+	return u ? { id: u._id, name: u.name ?? null, email: u.email ?? null } : null;
 }
 
 // Les réponses au formulaire voyagent en LISTE, pas en objet : les libellés de
@@ -180,8 +180,16 @@ async function leadPayload(ctx: QueryCtx, lead: Doc<"leads">) {
 
 async function bookingPayload(ctx: QueryCtx, booking: Doc<"bookings">) {
 	const event = await ctx.db.get(booking.eventId);
+	// Le setter n est pas porté par le rendez-vous : il est attribué au lead,
+	// ou à défaut défini sur l événement. On résout dans cet ordre.
+	const lead = booking.leadId ? await ctx.db.get(booking.leadId) : null;
+	const setterId = lead?.setterUserId ?? event?.setterId;
 	return {
 		id: booking._id,
+		lead_id: booking.leadId ?? null,
+		setter: await personOf(ctx, setterId),
+		rescheduled_at: iso(booking.rescheduledAt),
+		rescheduled_from: iso(booking.previousStartTime),
 		event: event
 			? { name: event.name, slug: event.slug }
 			: { name: null, slug: booking.eventSlug },
@@ -1103,9 +1111,13 @@ export const apiListBookingsInternal = internalQuery({
 		to: v.optional(v.number()),
 		status: optionalString,
 		limit: v.optional(v.number()),
+		cursor: optionalString,
 	},
 	handler: async (ctx, args) => {
-		const limit = clampLimit(args.limit);
+		const paginationOpts = {
+			numItems: clampLimit(args.limit),
+			cursor: args.cursor ?? null,
+		};
 
 		// Rendez-vous d'un prospect : on passe par son lead, bien plus direct
 		// qu'un balayage par date.
@@ -1116,18 +1128,21 @@ export const apiListBookingsInternal = internalQuery({
 				phone: args.phone,
 			});
 			if (!lead) throw new ConvexError("Lead introuvable.");
-			const rows = await ctx.db
+			const page = await ctx.db
 				.query("bookings")
 				.withIndex("by_leadId_startTime", (q) => q.eq("leadId", lead._id))
 				.order("desc")
-				.take(limit);
-			return {
-				bookings: await Promise.all(rows.map((b) => bookingPayload(ctx, b))),
-			};
+				.paginate(paginationOpts);
+			return await bookingsPage(ctx, page);
 		}
 
-		const from = args.from ?? Date.now() - 30 * 86_400_000;
-		const to = args.to ?? Date.now() + 90 * 86_400_000;
+		// Fenêtre par défaut arrondie au jour : un curseur appartient à UNE
+		// requête précise, et des bornes calculées à la milliseconde près en
+		// feraient une requête différente à chaque appel, donc un curseur
+		// toujours refusé.
+		const today = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+		const from = args.from ?? today - 30 * 86_400_000;
+		const to = args.to ?? today + 91 * 86_400_000;
 		if (to < from)
 			throw new ConvexError("La date de fin précède la date de début.");
 
@@ -1141,57 +1156,61 @@ export const apiListBookingsInternal = internalQuery({
 				throw new ConvexError(`Événement introuvable : ${args.eventSlug}`);
 		}
 
-		// Chaque chemin passe par un index couvrant la fenêtre de dates : sans
-		// ça, la requête balaierait toute la table à chaque appel d'Atlas.
-		let rows: Doc<"bookings">[];
+		// Chaque chemin passe par un index couvrant la fenêtre de dates, et
+		// rend un curseur : sans ça, un outil externe ne pourrait pas relire
+		// un historique plus long qu'une page.
 		if (event) {
-			rows = await ctx.db
+			const eventId = event._id;
+			const page = await ctx.db
 				.query("bookings")
 				.withIndex("by_eventId_startTime", (q) =>
-					q
-						.eq("eventId", event._id)
-						.gte("startTime", from)
-						.lte("startTime", to),
+					q.eq("eventId", eventId).gte("startTime", from).lte("startTime", to),
 				)
 				.order("desc")
-				.take(limit);
-		} else if (args.status) {
+				.paginate(paginationOpts);
+			return await bookingsPage(ctx, page, args.status);
+		}
+
+		if (args.status) {
 			const status = parseBookingStatus(args.status);
-			rows = await ctx.db
+			const page = await ctx.db
 				.query("bookings")
 				.withIndex("by_status_startTime", (q) =>
 					q.eq("status", status).gte("startTime", from).lte("startTime", to),
 				)
 				.order("desc")
-				.take(limit);
-		} else {
-			// Sans filtre : on interroge chaque statut par son index, puis on
-			// fusionne. Plus de requêtes, mais aucune lecture inutile.
-			const perStatus = await Promise.all(
-				BOOKING_STATUSES.map((status) =>
-					ctx.db
-						.query("bookings")
-						.withIndex("by_status_startTime", (q) =>
-							q
-								.eq("status", status)
-								.gte("startTime", from)
-								.lte("startTime", to),
-						)
-						.order("desc")
-						.take(limit),
-				),
-			);
-			rows = perStatus
-				.flat()
-				.sort((a, b) => b.startTime - a.startTime)
-				.slice(0, limit);
+				.paginate(paginationOpts);
+			return await bookingsPage(ctx, page);
 		}
 
-		return {
-			bookings: await Promise.all(rows.map((b) => bookingPayload(ctx, b))),
-		};
+		const page = await ctx.db
+			.query("bookings")
+			.withIndex("by_startTime", (q) =>
+				q.gte("startTime", from).lte("startTime", to),
+			)
+			.order("desc")
+			.paginate(paginationOpts);
+		return await bookingsPage(ctx, page);
 	},
 });
+
+// Mise en forme commune des pages de rendez-vous. Le filtre par statut ne
+// s'applique qu'au chemin « par événement », les deux autres l'ayant déjà
+// appliqué dans leur index.
+async function bookingsPage(
+	ctx: QueryCtx,
+	page: { page: Doc<"bookings">[]; isDone: boolean; continueCursor: string },
+	status?: string,
+) {
+	const rows = status
+		? page.page.filter((b) => b.status === parseBookingStatus(status))
+		: page.page;
+	return {
+		bookings: await Promise.all(rows.map((b) => bookingPayload(ctx, b))),
+		next_cursor: page.isDone ? null : page.continueCursor,
+		has_more: !page.isDone,
+	};
+}
 
 export const apiGetEventInternal = internalQuery({
 	args: { slug: v.string() },
@@ -1253,6 +1272,10 @@ export const apiListTeamInternal = internalQuery({
 	args: {},
 	handler: async (ctx) => {
 		const users = await ctx.db.query("users").collect();
+		const now = Date.now();
+		const invitations = (await ctx.db.query("invitations").collect()).filter(
+			(i) => !i.acceptedAt && !i.revokedAt && i.expiresAt > now,
+		);
 		return {
 			members: users.map((u) => ({
 				id: u._id,
@@ -1260,6 +1283,16 @@ export const apiListTeamInternal = internalQuery({
 				email: u.email ?? null,
 				role: u.role ?? null,
 				is_admin: Boolean(u.isAdmin),
+				// Mycall ne désactive pas un membre : il est présent, ou retiré.
+				// Le champ existe pour qu'un outil externe n'ait pas à traiter son
+				// absence le jour où la désactivation arrivera.
+				active: true,
+			})),
+			// Accès promis mais pas encore ouverts : à distinguer des membres.
+			pending_invitations: invitations.map((i) => ({
+				email: i.email,
+				role: i.role,
+				expires_at: iso(i.expiresAt),
 			})),
 		};
 	},

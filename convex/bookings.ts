@@ -1419,6 +1419,7 @@ export const rescheduleByToken = mutation({
 			hostId: resolved.hostId,
 			rescheduledFromBookingId: booking._id,
 			rescheduledAt: now,
+			previousStartTime,
 			// googleSyncStatus est laissé tel quel : la mise à jour de l.événement
 			// Google est planifiée plus bas (updateGoogleEventForBooking), qui gère
 			// aussi le cas d.un changement d.hôte.

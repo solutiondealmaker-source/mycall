@@ -369,6 +369,8 @@ export default defineSchema({
 		// Reschedule
 		rescheduledFromBookingId: v.optional(v.id("bookings")),
 		rescheduledAt: v.optional(v.number()),
+		// Heure de début avant la dernière replanification.
+		previousStartTime: v.optional(v.number()),
 
 		// Misc
 		bookedBySetterId: v.optional(v.id("users")), // outbound manuel
@@ -383,6 +385,7 @@ export default defineSchema({
 		.index("by_googleSyncStatus", ["googleSyncStatus"])
 		.index("by_leadId_startTime", ["leadId", "startTime"])
 		.index("by_status_startTime", ["status", "startTime"])
+		.index("by_startTime", ["startTime"])
 		.index("by_partialLeadId", ["partialLeadId"]),
 
 	// Audit log immuable de toutes les mutations sur un booking
