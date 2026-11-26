@@ -7,6 +7,7 @@
 		"onboard": "bun scripts/onboard-client.ts",
 		"seats": "bun scripts/seats.ts",
 		"status": "bun scripts/status.ts",
+		"atlas-key": "bun scripts/atlas-key.ts",
 		"dev": "next dev",
 		"convex": "bunx convex dev",
 		"build": "next build",
