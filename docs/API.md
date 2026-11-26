@@ -155,3 +155,62 @@ webhook, considéré comme supprimé côté outil.
 | `404` | Ressource introuvable, ou adresse inconnue |
 
 Toute réponse d'erreur contient un champ `error` rédigé en français.
+
+## Écriture sur les rendez-vous
+
+Chaque action emprunte le chemin déjà utilisé par l'interface : agenda Google,
+emails au prospect et à l'hôte, statut du lead et événements sortants suivent
+exactement comme si l'action venait du CRM.
+
+### `GET /slots`
+Créneaux réellement réservables : disponibilités du closer, agendas Google et
+marges comprises.
+
+| Paramètre | Rôle |
+|---|---|
+| `event_slug` | Obligatoire |
+| `date` | `AAAA-MM-JJ`. Renvoie les créneaux de ce jour |
+| `month`, `year` | Sans `date` : les jours disponibles du mois |
+
+### `POST /bookings`
+Réserve. Champs : `event_slug`, `start_time` (millisecondes), `first_name`,
+`phone`, et facultativement `last_name`, `email`, `timezone`, `form_answers`.
+
+Répond `409` si le créneau vient d'être pris : c'est le même verrou que pour un
+prospect, deux réservations simultanées ne peuvent pas aboutir.
+
+### `POST /bookings/cancel`
+Champs : `booking_id`, ou `email` | `phone` pour viser le prochain rendez-vous à
+venir du prospect. Facultatif : `reason`.
+
+### `POST /bookings/reschedule`
+Champs : `booking_id` | `email` | `phone`, `start_time`, `timezone`.
+Répond avec `host_changed`, vrai si le déplacement a changé de closer.
+
+### `POST /bookings/outcome`
+Saisit la présence et l'issue.
+
+| Champ | Valeurs |
+|---|---|
+| `attendance` | `planifie`, `tenu`, `no_show`, `annule` |
+| `outcome` | `en_attente`, `follow_up`, `gagne`, `perdu` |
+| `amount` | En euros, obligatoire pour `gagne` |
+| `loss_reason` | Libellé exact du catalogue, obligatoire pour `perdu` |
+| `follow_up_at`, `follow_up_reason`, `follow_up_channel` | Obligatoires pour `follow_up` |
+
+Le statut du prospect est recalculé dans la foulée : une vente le fait passer en
+gagné, avec son montant.
+
+## Réglages
+
+### `POST /events/{slug}`
+`active`, `duration_minutes`, `assignment_mode` (`round_robin` ou `manual`),
+`buffer_after_minutes`, `minimum_notice_hours`.
+
+### `POST /events/{slug}/hosts`
+Change la place d'un closer dans l'attribution.
+Champs : `closer_email`, `priority` (`high`, `medium`, `low`).
+
+En mode `manual`, le prospect tombe toujours sur le closer disponible le plus
+prioritaire. En `round_robin`, la priorité est ignorée et chacun reçoit à son
+tour.

@@ -7,7 +7,7 @@
  */
 
 import { httpRouter } from "convex/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 
@@ -593,6 +593,25 @@ function tagsField(body: Body): string[] | undefined {
 	return undefined;
 }
 
+function required(body: Body, name: string): string {
+	const value = field(body, name);
+	if (!value) throw new Error(`Champ ${name} manquant.`);
+	return value;
+}
+
+function requiredNumber(body: Body, name: string): number {
+	const value = numberField(body, name);
+	if (value === undefined) throw new Error(`Champ ${name} manquant.`);
+	return value;
+}
+
+// "true", "1", "oui" : un formulaire n'envoie que du texte.
+function booleanField(body: Body, name: string): boolean | undefined {
+	const raw = field(body, name);
+	if (raw === undefined) return undefined;
+	return /^(true|1|oui|yes)$/i.test(raw);
+}
+
 function errorMessage(err: unknown): string {
 	const msg = err instanceof Error ? err.message : String(err);
 	// Convex préfixe « Uncaught Error: » ou « Uncaught ConvexError: » : l'outil
@@ -615,6 +634,20 @@ const API_DOC = {
 			"Rendez-vous d un prospect (id | email | phone) ou d une période (from, to en ms). Filtres : event_slug, status, limit, cursor. Un curseur ne vaut que pour des filtres identiques. Chaque rendez-vous porte lead_id, setter, host, rescheduled_from et rescheduled_at.",
 		"GET /api/v1/events/{slug}":
 			"Réglages complets d un événement : durée, marges, mode d attribution, hôtes et leurs priorités, questions.",
+		"GET /api/v1/slots":
+			"Créneaux réellement réservables. event_slug requis. Avec date=AAAA-MM-JJ : les créneaux de ce jour. Sans date : les jours disponibles du mois (month, year).",
+		"POST /api/v1/bookings":
+			"Réserve un créneau. Champs : event_slug, start_time (ms), first_name, phone, et email, last_name, timezone, form_answers.",
+		"POST /api/v1/bookings/cancel":
+			"Annule. Champs : booking_id, ou email | phone pour le prochain rendez-vous. Optionnel : reason.",
+		"POST /api/v1/bookings/reschedule":
+			"Déplace. Champs : booking_id | email | phone, start_time (ms), timezone.",
+		"POST /api/v1/bookings/outcome":
+			"Saisit présence et issue. Champs : booking_id | email | phone, attendance (planifie, tenu, no_show, annule), outcome (en_attente, follow_up, gagne, perdu), amount en euros, loss_reason, follow_up_at, follow_up_reason, follow_up_channel.",
+		"POST /api/v1/events/{slug}":
+			"Change les réglages : active, duration_minutes, assignment_mode (round_robin | manual), buffer_after_minutes, minimum_notice_hours.",
+		"POST /api/v1/events/{slug}/hosts":
+			"Change la priorité d un closer dans l attribution. Champs : closer_email, priority (high, medium, low).",
 		"GET /api/v1/team":
 			"Membres (id, role, is_admin, active) et invitations en attente.",
 		"POST /api/v1/leads":
@@ -701,6 +734,49 @@ http.route({
 						cursor: url.searchParams.get("cursor") ?? undefined,
 					}),
 				);
+			}
+
+			if (path === "/api/v1/slots") {
+				// Mêmes créneaux que ceux proposés au prospect : disponibilités
+				// des closers, agendas Google et marges comprises.
+				const slug = url.searchParams.get("event_slug");
+				if (!slug) {
+					return json({ error: "Précise event_slug." }, 400);
+				}
+				const date = url.searchParams.get("date");
+				if (date) {
+					const parsed = new Date(`${date}T00:00:00Z`);
+					if (Number.isNaN(parsed.getTime())) {
+						return json({ error: "date attendue au format AAAA-MM-JJ." }, 400);
+					}
+					const slots = await ctx.runQuery(
+						api.bookings.getAvailableSlotsStatic,
+						{ slug, dateMs: parsed.getTime() },
+					);
+					return json({
+						date,
+						slots: slots.map((s) => ({
+							start_time: new Date(s.time).toISOString(),
+						})),
+					});
+				}
+				const now = new Date();
+				const month = Number(
+					url.searchParams.get("month") ?? now.getMonth() + 1,
+				);
+				const year = Number(url.searchParams.get("year") ?? now.getFullYear());
+				if (!Number.isFinite(month) || !Number.isFinite(year)) {
+					return json(
+						{ error: "month et year doivent être des nombres." },
+						400,
+					);
+				}
+				const days = await ctx.runQuery(api.bookings.getAvailableDays, {
+					slug,
+					month: month - 1,
+					year,
+				});
+				return json({ year, month, available_days: days });
 			}
 
 			if (path === "/api/v1/team") {
@@ -800,6 +876,109 @@ http.route({
 				const res = await ctx.runMutation(
 					internal.automations.apiSetStatusInternal,
 					{ ...ref, status, amount: numberField(body, "amount") },
+				);
+				return json({ ok: true, ...res });
+			}
+
+			if (path === "/api/v1/bookings") {
+				// Même chemin qu'une réservation faite par le prospect : créneau
+				// vérifié, hôte résolu, agenda Google et emails compris.
+				const res = await ctx.runAction(api.bookings.createBookingChecked, {
+					slug: required(body, "event_slug"),
+					startTime: requiredNumber(body, "start_time"),
+					firstName: required(body, "first_name"),
+					lastName: field(body, "last_name") ?? "",
+					phone: required(body, "phone"),
+					email: field(body, "email"),
+					formAnswers: field(body, "form_answers"),
+					timezone: field(body, "timezone") ?? "Europe/Paris",
+				});
+				if (!res.ok) return json({ error: res.error }, 409);
+				return json({ ok: true, booking_id: res.bookingId }, 201);
+			}
+
+			if (path === "/api/v1/bookings/cancel") {
+				const target = await ctx.runQuery(
+					internal.automations.apiResolveBookingInternal,
+					{
+						bookingId: field(body, "booking_id"),
+						email: ref.email,
+						phone: ref.phone,
+					},
+				);
+				await ctx.runMutation(api.bookings.cancelByToken, {
+					token: target.cancelToken,
+					reason: field(body, "reason"),
+				});
+				return json({ ok: true, booking_id: target.id });
+			}
+
+			if (path === "/api/v1/bookings/reschedule") {
+				const target = await ctx.runQuery(
+					internal.automations.apiResolveBookingInternal,
+					{
+						bookingId: field(body, "booking_id"),
+						email: ref.email,
+						phone: ref.phone,
+					},
+				);
+				const res = await ctx.runMutation(api.bookings.rescheduleByToken, {
+					token: target.rescheduleToken,
+					newStartTime: requiredNumber(body, "start_time"),
+					timezone: field(body, "timezone") ?? "Europe/Paris",
+				});
+				return json({
+					ok: true,
+					booking_id: target.id,
+					host_changed: res.hostChanged,
+				});
+			}
+
+			if (path === "/api/v1/bookings/outcome") {
+				const res = await ctx.runMutation(
+					internal.automations.apiSetOutcomeInternal,
+					{
+						userId: auth.userId,
+						bookingId: field(body, "booking_id"),
+						email: ref.email,
+						phone: ref.phone,
+						attendance: required(body, "attendance"),
+						outcome: field(body, "outcome"),
+						amount: numberField(body, "amount"),
+						lossReason: field(body, "loss_reason"),
+						cancelReason: field(body, "cancel_reason"),
+						followUpAt: numberField(body, "follow_up_at"),
+						followUpReason: field(body, "follow_up_reason"),
+						followUpChannel: field(body, "follow_up_channel"),
+					},
+				);
+				return json({ ok: true, ...res });
+			}
+
+			const eventWrite = /^\/api\/v1\/events\/([^/]+)(\/hosts)?$/.exec(path);
+			if (eventWrite) {
+				const slug = decodeURIComponent(eventWrite[1]);
+				if (eventWrite[2]) {
+					const res = await ctx.runMutation(
+						internal.automations.apiSetHostPriorityInternal,
+						{
+							slug,
+							closerEmail: required(body, "closer_email"),
+							priority: required(body, "priority"),
+						},
+					);
+					return json({ ok: true, ...res });
+				}
+				const res = await ctx.runMutation(
+					internal.automations.apiUpdateEventInternal,
+					{
+						slug,
+						active: booleanField(body, "active"),
+						durationMinutes: numberField(body, "duration_minutes"),
+						assignmentMode: field(body, "assignment_mode"),
+						bufferAfterMinutes: numberField(body, "buffer_after_minutes"),
+						minimumNoticeHours: numberField(body, "minimum_notice_hours"),
+					},
 				);
 				return json({ ok: true, ...res });
 			}

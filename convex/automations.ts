@@ -18,6 +18,7 @@ import {
 	type QueryCtx,
 	query,
 } from "./_generated/server";
+import { applyOutcome } from "./bookings";
 import { _findLeadByAnyKey } from "./leads";
 import { requireAdmin, requireIntegrations } from "./lib/auth";
 import { BRAND_NAME } from "./lib/emailTemplates";
@@ -1012,6 +1013,49 @@ export const apiListEventsInternal = internalQuery({
 
 const API_PAGE_MAX = 200;
 
+// Les valeurs de présence et d'issue viennent d'un outil externe : on accepte
+// le libellé, on refuse clairement ce qui n'existe pas, et on ne laisse jamais
+// passer une valeur approximative jusqu'à la base.
+const ATTENDANCES = ["planifie", "tenu", "no_show", "annule"] as const;
+const OUTCOMES = ["en_attente", "follow_up", "gagne", "perdu"] as const;
+const FOLLOW_UP_CHANNELS = ["call", "sms", "email", "other"] as const;
+
+function parseAttendance(raw: string): (typeof ATTENDANCES)[number] {
+	const value = raw.trim().toLowerCase();
+	const match = ATTENDANCES.find((a) => a === value);
+	if (!match) {
+		throw new ConvexError(
+			`Présence inconnue : ${raw}. Attendu : ${ATTENDANCES.join(", ")}.`,
+		);
+	}
+	return match;
+}
+
+function parseOutcome(raw: string): (typeof OUTCOMES)[number] {
+	const value = raw.trim().toLowerCase();
+	const match = OUTCOMES.find((o) => o === value);
+	if (!match) {
+		throw new ConvexError(
+			`Issue inconnue : ${raw}. Attendu : ${OUTCOMES.join(", ")}.`,
+		);
+	}
+	return match;
+}
+
+function parseFollowUpChannel(
+	raw: string | undefined,
+): (typeof FOLLOW_UP_CHANNELS)[number] {
+	if (!raw) return "other";
+	const value = raw.trim().toLowerCase();
+	const match = FOLLOW_UP_CHANNELS.find((c) => c === value);
+	if (!match) {
+		throw new ConvexError(
+			`Canal de relance inconnu : ${raw}. Attendu : ${FOLLOW_UP_CHANNELS.join(", ")}.`,
+		);
+	}
+	return match;
+}
+
 const BOOKING_STATUSES = [
 	"confirmed",
 	"cancelled",
@@ -1295,5 +1339,220 @@ export const apiListTeamInternal = internalQuery({
 				expires_at: iso(i.expiresAt),
 			})),
 		};
+	},
+});
+
+// ============================================================
+// API ENTRANTE — écriture sur les rendez-vous et les réglages
+// ============================================================
+//
+// Chaque action passe par la mutation déjà utilisée par l'interface : un
+// rendez-vous annulé depuis Atlas suit exactement le même chemin que s'il
+// l'était depuis le CRM, emails et agenda Google compris.
+
+async function keyOwner(ctx: MutationCtx, userId: Id<"users">) {
+	const user = await ctx.db.get(userId);
+	if (!user) throw new ConvexError("Le compte lié à cette clé n'existe plus.");
+	return user;
+}
+
+async function bookingByRef(
+	ctx: MutationCtx | QueryCtx,
+	ref: { bookingId?: string; email?: string; phone?: string },
+): Promise<Doc<"bookings">> {
+	if (ref.bookingId) {
+		const id = ctx.db.normalizeId("bookings", ref.bookingId);
+		const booking = id ? await ctx.db.get(id) : null;
+		if (!booking) throw new ConvexError("Rendez-vous introuvable.");
+		return booking;
+	}
+	// À défaut d'identifiant : le prochain rendez-vous à venir du prospect,
+	// celui sur lequel porte une annulation ou un déplacement.
+	const lead = await findLead(ctx, { email: ref.email, phone: ref.phone });
+	if (!lead) throw new ConvexError("Lead introuvable.");
+	const upcoming = await ctx.db
+		.query("bookings")
+		.withIndex("by_leadId_startTime", (q) => q.eq("leadId", lead._id))
+		.order("desc")
+		.collect();
+	const next = upcoming.find(
+		(b) => b.status === "confirmed" || b.status === "rescheduled",
+	);
+	if (!next) {
+		throw new ConvexError("Ce prospect n'a aucun rendez-vous à venir.");
+	}
+	return next;
+}
+
+// Résout le rendez-vous visé et rend ses jetons : l'annulation et le
+// déplacement réutilisent les mutations publiques, qui travaillent par jeton.
+export const apiResolveBookingInternal = internalQuery({
+	args: {
+		bookingId: optionalString,
+		email: optionalString,
+		phone: optionalString,
+	},
+	handler: async (ctx, ref) => {
+		const booking = await bookingByRef(ctx, ref);
+		return {
+			id: booking._id,
+			cancelToken: booking.cancelToken,
+			rescheduleToken: booking.rescheduleToken,
+			status: booking.status,
+			startTime: booking.startTime,
+		};
+	},
+});
+
+export const apiSetOutcomeInternal = internalMutation({
+	args: {
+		userId: v.id("users"),
+		bookingId: optionalString,
+		email: optionalString,
+		phone: optionalString,
+		attendance: v.string(),
+		outcome: optionalString,
+		amount: v.optional(v.number()),
+		lossReason: optionalString,
+		cancelReason: optionalString,
+		followUpAt: v.optional(v.number()),
+		followUpReason: optionalString,
+		followUpChannel: optionalString,
+	},
+	handler: async (ctx, args) => {
+		const caller = await keyOwner(ctx, args.userId);
+		const booking = await bookingByRef(ctx, {
+			bookingId: args.bookingId,
+			email: args.email,
+			phone: args.phone,
+		});
+
+		const attendance = parseAttendance(args.attendance);
+		const outcome = args.outcome ? parseOutcome(args.outcome) : undefined;
+
+		// La raison de perte est une entrée du catalogue du client : on accepte
+		// son libellé, plus parlant qu'un identifiant pour un outil externe.
+		let issueLossReasonId: Id<"lossReasons"> | undefined;
+		if (args.lossReason) {
+			const wanted = args.lossReason.trim().toLowerCase();
+			const reasons = await ctx.db.query("lossReasons").collect();
+			const match = reasons.find((r) => r.label.toLowerCase() === wanted);
+			if (!match) {
+				throw new ConvexError(
+					`Raison de perte inconnue : ${args.lossReason}. Valeurs possibles : ${reasons
+						.map((r) => r.label)
+						.join(", ")}.`,
+				);
+			}
+			issueLossReasonId = match._id;
+		}
+
+		await applyOutcome(ctx, caller, {
+			bookingId: booking._id,
+			tenue: attendance,
+			issue: outcome,
+			issueLossReasonId,
+			issueAmountCents:
+				args.amount !== undefined ? Math.round(args.amount * 100) : undefined,
+			cancelReason: args.cancelReason,
+			followUp:
+				args.followUpAt !== undefined
+					? {
+							dueAt: args.followUpAt,
+							reason: args.followUpReason ?? "Relance",
+							channel: parseFollowUpChannel(args.followUpChannel),
+						}
+					: undefined,
+		});
+
+		return { id: booking._id, attendance, outcome: outcome ?? "en_attente" };
+	},
+});
+
+export const apiUpdateEventInternal = internalMutation({
+	args: {
+		slug: v.string(),
+		active: v.optional(v.boolean()),
+		durationMinutes: v.optional(v.number()),
+		assignmentMode: optionalString,
+		bufferAfterMinutes: v.optional(v.number()),
+		minimumNoticeHours: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const event = await ctx.db
+			.query("events")
+			.withIndex("by_slug", (q) => q.eq("slug", args.slug.trim()))
+			.first();
+		if (!event) throw new ConvexError(`Événement introuvable : ${args.slug}`);
+
+		let priorityMode: Doc<"events">["priorityMode"] | undefined;
+		if (args.assignmentMode) {
+			const mode = args.assignmentMode.trim().toLowerCase();
+			if (mode !== "round_robin" && mode !== "manual") {
+				throw new ConvexError(
+					"assignment_mode doit valoir round_robin ou manual.",
+				);
+			}
+			priorityMode = mode;
+		}
+
+		await ctx.db.patch(event._id, {
+			...(args.active !== undefined && { isActive: args.active }),
+			...(args.durationMinutes !== undefined && {
+				durationMinutes: args.durationMinutes,
+			}),
+			...(priorityMode && { priorityMode }),
+			...(args.bufferAfterMinutes !== undefined && {
+				bufferAfterMinutes: args.bufferAfterMinutes,
+			}),
+			...(args.minimumNoticeHours !== undefined && {
+				minimumNoticeHours: args.minimumNoticeHours,
+			}),
+		});
+		return { slug: event.slug };
+	},
+});
+
+export const apiSetHostPriorityInternal = internalMutation({
+	args: {
+		slug: v.string(),
+		closerEmail: v.string(),
+		priority: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const priority = args.priority.trim().toLowerCase();
+		if (priority !== "high" && priority !== "medium" && priority !== "low") {
+			throw new ConvexError("priority doit valoir high, medium ou low.");
+		}
+		const event = await ctx.db
+			.query("events")
+			.withIndex("by_slug", (q) => q.eq("slug", args.slug.trim()))
+			.first();
+		if (!event) throw new ConvexError(`Événement introuvable : ${args.slug}`);
+
+		const user = await ctx.db
+			.query("users")
+			.withIndex("email", (q) =>
+				q.eq("email", args.closerEmail.trim().toLowerCase()),
+			)
+			.first();
+		if (!user) {
+			throw new ConvexError(`Aucun membre avec l'email ${args.closerEmail}.`);
+		}
+
+		const host = await ctx.db
+			.query("eventHosts")
+			.withIndex("by_eventId_userId", (q) =>
+				q.eq("eventId", event._id).eq("userId", user._id),
+			)
+			.first();
+		if (!host) {
+			throw new ConvexError(
+				`${args.closerEmail} n'est pas hôte de l'événement ${args.slug}.`,
+			);
+		}
+
+		await ctx.db.patch(host._id, { priority });
+		return { slug: event.slug, closer: user.email, priority };
 	},
 });

@@ -1478,219 +1478,243 @@ export const rescheduleByToken = mutation({
 //   2. Bumps lossReason.usageCount if issue=perdu
 //   3. Inserts leadFollowUp if issue=follow_up
 //   4. Re-derives lead.status via applyAutoPhase
-export const setOutcome = mutation({
-	args: {
-		bookingId: v.id("bookings"),
-		tenue: v.union(
-			v.literal("planifie"),
-			v.literal("tenu"),
-			v.literal("no_show"),
-			v.literal("annule"),
+// Arguments de la saisie d'issue, partagés par la mutation de l'interface et
+// par la variante appelée depuis l'API : une seule définition, donc aucune
+// dérive possible entre les deux portes d'entrée.
+export const outcomeArgs = {
+	bookingId: v.id("bookings"),
+	tenue: v.union(
+		v.literal("planifie"),
+		v.literal("tenu"),
+		v.literal("no_show"),
+		v.literal("annule"),
+	),
+	issue: v.optional(
+		v.union(
+			v.literal("en_attente"),
+			v.literal("follow_up"),
+			v.literal("gagne"),
+			v.literal("perdu"),
 		),
-		issue: v.optional(
-			v.union(
-				v.literal("en_attente"),
-				v.literal("follow_up"),
-				v.literal("gagne"),
-				v.literal("perdu"),
+	),
+	issueLossReasonId: v.optional(v.id("lossReasons")),
+	issueAmountCents: v.optional(v.number()),
+	issueOfferId: v.optional(v.string()),
+	followUp: v.optional(
+		v.object({
+			dueAt: v.number(),
+			reason: v.string(),
+			channel: v.union(
+				v.literal("call"),
+				v.literal("sms"),
+				v.literal("email"),
+				v.literal("other"),
 			),
-		),
-		issueLossReasonId: v.optional(v.id("lossReasons")),
-		issueAmountCents: v.optional(v.number()),
-		issueOfferId: v.optional(v.string()),
-		followUp: v.optional(
-			v.object({
-				dueAt: v.number(),
-				reason: v.string(),
-				channel: v.union(
-					v.literal("call"),
-					v.literal("sms"),
-					v.literal("email"),
-					v.literal("other"),
-				),
-			}),
-		),
-		cancelReason: v.optional(v.string()),
+		}),
+	),
+	cancelReason: v.optional(v.string()),
+} as const;
+
+// Le corps de la saisie d'issue. L'appelant est déjà résolu : session de
+// l'interface, ou propriétaire de la clé d'API.
+export async function applyOutcome(
+	ctx: MutationCtx,
+	caller: Doc<"users">,
+	args: {
+		bookingId: Id<"bookings">;
+		tenue: Doc<"bookings">["tenue"];
+		issue?: Doc<"bookings">["issue"];
+		issueLossReasonId?: Id<"lossReasons">;
+		issueAmountCents?: number;
+		issueOfferId?: string;
+		followUp?: {
+			dueAt: number;
+			reason: string;
+			channel: "call" | "sms" | "email" | "other";
+		};
+		cancelReason?: string;
 	},
-	handler: async (ctx, args) => {
-		const caller = await getAuthenticatedUser(ctx);
-		const booking = await ctx.db.get(args.bookingId);
-		if (!booking) throw new ConvexError("Booking introuvable");
-		if (!booking.leadId)
-			throw new ConvexError("Ce booking n'est pas relié à une fiche lead");
+) {
+	const booking = await ctx.db.get(args.bookingId);
+	if (!booking) throw new ConvexError("Booking introuvable");
+	if (!booking.leadId)
+		throw new ConvexError("Ce booking n'est pas relié à une fiche lead");
 
-		// Authorization: host, lead closer/setter, or admin
-		const isPrivileged = isAdminUser(caller);
-		const isHost = booking.hostId === caller._id;
-		let isLeadOwner = false;
-		if (booking.leadId) {
-			const lead = await ctx.db.get(booking.leadId);
-			isLeadOwner =
-				lead?.closerUserId === caller._id || lead?.setterUserId === caller._id;
-		}
-		if (!isPrivileged && !isHost && !isLeadOwner) {
-			throw new ConvexError("Tu n'as pas accès à ce booking");
-		}
+	// Authorization: host, lead closer/setter, or admin
+	const isPrivileged = isAdminUser(caller);
+	const isHost = booking.hostId === caller._id;
+	let isLeadOwner = false;
+	if (booking.leadId) {
+		const lead = await ctx.db.get(booking.leadId);
+		isLeadOwner =
+			lead?.closerUserId === caller._id || lead?.setterUserId === caller._id;
+	}
+	if (!isPrivileged && !isHost && !isLeadOwner) {
+		throw new ConvexError("Tu n'as pas accès à ce booking");
+	}
 
-		// Validation rules (mirror DG COACHING bookingOutcomes.ts)
-		if (args.tenue === "tenu" && !args.issue) {
-			throw new ConvexError("Un appel tenu doit avoir une issue");
+	// Validation rules (mirror DG COACHING bookingOutcomes.ts)
+	if (args.tenue === "tenu" && !args.issue) {
+		throw new ConvexError("Un appel tenu doit avoir une issue");
+	}
+	if (args.tenue !== "tenu" && args.issue && args.issue !== "en_attente") {
+		throw new ConvexError("L'issue n'est valide que pour un appel tenu");
+	}
+	if (args.issue === "perdu" && !args.issueLossReasonId) {
+		throw new ConvexError("Une raison de perte est requise");
+	}
+	if (args.issue === "gagne") {
+		if (
+			typeof args.issueAmountCents !== "number" ||
+			args.issueAmountCents <= 0
+		) {
+			throw new ConvexError(
+				"Un montant contracté > 0 est requis pour une vente",
+			);
 		}
-		if (args.tenue !== "tenu" && args.issue && args.issue !== "en_attente") {
-			throw new ConvexError("L'issue n'est valide que pour un appel tenu");
+	}
+	if (args.issue === "follow_up") {
+		if (!args.followUp) {
+			throw new ConvexError("Une relance (date + raison + canal) est requise");
 		}
-		if (args.issue === "perdu" && !args.issueLossReasonId) {
-			throw new ConvexError("Une raison de perte est requise");
+		if (args.followUp.dueAt < Date.now() - 60_000) {
+			throw new ConvexError("La date de relance doit être dans le futur");
 		}
-		if (args.issue === "gagne") {
-			if (
-				typeof args.issueAmountCents !== "number" ||
-				args.issueAmountCents <= 0
-			) {
-				throw new ConvexError(
-					"Un montant contracté > 0 est requis pour une vente",
-				);
-			}
+		if (!args.followUp.reason.trim()) {
+			throw new ConvexError("Une raison de relance est requise");
 		}
-		if (args.issue === "follow_up") {
-			if (!args.followUp) {
-				throw new ConvexError(
-					"Une relance (date + raison + canal) est requise",
-				);
-			}
-			if (args.followUp.dueAt < Date.now() - 60_000) {
-				throw new ConvexError("La date de relance doit être dans le futur");
-			}
-			if (!args.followUp.reason.trim()) {
-				throw new ConvexError("Une raison de relance est requise");
-			}
-		}
+	}
 
-		const now = Date.now();
+	const now = Date.now();
 
-		// Derive legacy status from tenue (for queries that still use status)
-		let statusPatch: Partial<Doc<"bookings">> = {};
-		if (args.tenue === "no_show") statusPatch = { status: "no_show" };
-		else if (args.tenue === "annule") statusPatch = { status: "cancelled" };
-		else if (args.tenue === "tenu") statusPatch = { status: "completed" };
-		else if (args.tenue === "planifie") statusPatch = { status: "confirmed" };
+	// Derive legacy status from tenue (for queries that still use status)
+	let statusPatch: Partial<Doc<"bookings">> = {};
+	if (args.tenue === "no_show") statusPatch = { status: "no_show" };
+	else if (args.tenue === "annule") statusPatch = { status: "cancelled" };
+	else if (args.tenue === "tenu") statusPatch = { status: "completed" };
+	else if (args.tenue === "planifie") statusPatch = { status: "confirmed" };
 
-		await ctx.db.patch(args.bookingId, {
-			tenue: args.tenue,
-			issue: args.issue ?? "en_attente",
-			issueLossReasonId:
-				args.issue === "perdu" ? args.issueLossReasonId : undefined,
-			issueAmountCents:
-				args.issue === "gagne" ? args.issueAmountCents : undefined,
-			// Origine "manual" : un paiement Stripe arrivant ensuite ne viendra pas
-			// s'ajouter à ce montant. Le chiffre saisi par le closer fait foi.
-			issueAmountSource:
+	await ctx.db.patch(args.bookingId, {
+		tenue: args.tenue,
+		issue: args.issue ?? "en_attente",
+		issueLossReasonId:
+			args.issue === "perdu" ? args.issueLossReasonId : undefined,
+		issueAmountCents:
+			args.issue === "gagne" ? args.issueAmountCents : undefined,
+		// Origine "manual" : un paiement Stripe arrivant ensuite ne viendra pas
+		// s'ajouter à ce montant. Le chiffre saisi par le closer fait foi.
+		issueAmountSource:
+			args.issue === "gagne" && args.issueAmountCents !== undefined
+				? ("manual" as const)
+				: undefined,
+		issueOfferId: args.issue === "gagne" ? args.issueOfferId : undefined,
+		cancelReason: args.tenue === "annule" ? args.cancelReason : undefined,
+		...statusPatch,
+	});
+
+	// Un rendez-vous qui vient d'être marqué tenu déclenche la séquence
+	// d'après-rendez-vous (remerciement, suite). La condition porte sur le
+	// changement : rouvrir la fiche pour corriger l'issue ne relance pas.
+	if (args.tenue === "tenu" && booking.tenue !== "tenu") {
+		await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
+			trigger: "after_held" as const,
+			leadId: booking.leadId,
+			bookingId: args.bookingId,
+			anchorAt: now,
+		});
+	}
+
+	// Un no-show d�clenche la s�quence de reprogrammation, s'il en existe une.
+	if (args.tenue === "no_show") {
+		await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
+			trigger: "no_show" as const,
+			leadId: booking.leadId,
+			bookingId: args.bookingId,
+			anchorAt: now,
+		});
+	}
+
+	// Report du montant sur le lead. Ici on REMPLACE, là où un paiement Stripe
+	// cumule (stripe.ts) : le closer déclare la valeur de l'affaire, il ne
+	// rapporte pas un encaissement de plus.
+	if (args.issue === "gagne" && args.issueAmountCents) {
+		await ctx.db.patch(booking.leadId, {
+			montantContracte: args.issueAmountCents,
+			convertedAt: now,
+			lastInteractionAt: now,
+		});
+	}
+
+	// Bump loss reason usage count
+	if (args.issue === "perdu" && args.issueLossReasonId) {
+		const lr = await ctx.db.get(args.issueLossReasonId);
+		if (lr) {
+			await ctx.db.patch(args.issueLossReasonId, {
+				usageCount: lr.usageCount + 1,
+			});
+		}
+	}
+
+	// Auto-create follow-up row
+	if (args.issue === "follow_up" && args.followUp) {
+		const lead = await ctx.db.get(booking.leadId);
+		const assignedTo: Id<"users"> = lead?.closerUserId ?? caller._id;
+		await ctx.db.insert("leadFollowUps", {
+			leadId: booking.leadId,
+			dueAt: args.followUp.dueAt,
+			reason: args.followUp.reason.trim(),
+			channel: args.followUp.channel,
+			status: "pending",
+			closerUserId: assignedTo,
+		});
+	}
+
+	// Re-derive lead phase
+	await _applyAutoPhase(ctx, booking.leadId);
+
+	// Une annulation saisie depuis le CRM vaut une annulation : les outils
+	// branchés attendent booking.cancelled, qu'elle vienne du prospect ou de
+	// l'équipe.
+	if (args.tenue === "annule" && booking.tenue !== "annule") {
+		await emitEvent(ctx, "booking.cancelled", {
+			bookingId: args.bookingId,
+			leadId: booking.leadId,
+			data: { cancelled_by: "equipe" },
+		});
+	}
+
+	await emitEvent(ctx, "booking.outcome_updated", {
+		bookingId: args.bookingId,
+		leadId: booking.leadId,
+		data: {
+			attendance: args.tenue,
+			outcome: args.issue ?? "en_attente",
+			amount:
 				args.issue === "gagne" && args.issueAmountCents !== undefined
-					? ("manual" as const)
-					: undefined,
-			issueOfferId: args.issue === "gagne" ? args.issueOfferId : undefined,
-			cancelReason: args.tenue === "annule" ? args.cancelReason : undefined,
-			...statusPatch,
-		});
+					? args.issueAmountCents / 100
+					: null,
+		},
+	});
 
-		// Un rendez-vous qui vient d'être marqué tenu déclenche la séquence
-		// d'après-rendez-vous (remerciement, suite). La condition porte sur le
-		// changement : rouvrir la fiche pour corriger l'issue ne relance pas.
-		if (args.tenue === "tenu" && booking.tenue !== "tenu") {
-			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
-				trigger: "after_held" as const,
-				leadId: booking.leadId,
-				bookingId: args.bookingId,
-				anchorAt: now,
-			});
-		}
+	await logBookingActivity(ctx, {
+		bookingId: args.bookingId,
+		leadId: booking.leadId,
+		type: "outcome_recorded",
+		actorType: "user",
+		actorUserId: caller._id,
+		payload: {
+			tenue: args.tenue,
+			issue: args.issue,
+			issueAmountCents: args.issueAmountCents,
+			issueLossReasonId: args.issueLossReasonId,
+		},
+	});
+}
 
-		// Un no-show d�clenche la s�quence de reprogrammation, s'il en existe une.
-		if (args.tenue === "no_show") {
-			await ctx.runMutation(internal.sequences.enrollByTriggerInternal, {
-				trigger: "no_show" as const,
-				leadId: booking.leadId,
-				bookingId: args.bookingId,
-				anchorAt: now,
-			});
-		}
-
-		// Report du montant sur le lead. Ici on REMPLACE, là où un paiement Stripe
-		// cumule (stripe.ts) : le closer déclare la valeur de l'affaire, il ne
-		// rapporte pas un encaissement de plus.
-		if (args.issue === "gagne" && args.issueAmountCents) {
-			await ctx.db.patch(booking.leadId, {
-				montantContracte: args.issueAmountCents,
-				convertedAt: now,
-				lastInteractionAt: now,
-			});
-		}
-
-		// Bump loss reason usage count
-		if (args.issue === "perdu" && args.issueLossReasonId) {
-			const lr = await ctx.db.get(args.issueLossReasonId);
-			if (lr) {
-				await ctx.db.patch(args.issueLossReasonId, {
-					usageCount: lr.usageCount + 1,
-				});
-			}
-		}
-
-		// Auto-create follow-up row
-		if (args.issue === "follow_up" && args.followUp) {
-			const lead = await ctx.db.get(booking.leadId);
-			const assignedTo: Id<"users"> = lead?.closerUserId ?? caller._id;
-			await ctx.db.insert("leadFollowUps", {
-				leadId: booking.leadId,
-				dueAt: args.followUp.dueAt,
-				reason: args.followUp.reason.trim(),
-				channel: args.followUp.channel,
-				status: "pending",
-				closerUserId: assignedTo,
-			});
-		}
-
-		// Re-derive lead phase
-		await _applyAutoPhase(ctx, booking.leadId);
-
-		// Une annulation saisie depuis le CRM vaut une annulation : les outils
-		// branchés attendent booking.cancelled, qu'elle vienne du prospect ou de
-		// l'équipe.
-		if (args.tenue === "annule" && booking.tenue !== "annule") {
-			await emitEvent(ctx, "booking.cancelled", {
-				bookingId: args.bookingId,
-				leadId: booking.leadId,
-				data: { cancelled_by: "equipe" },
-			});
-		}
-
-		await emitEvent(ctx, "booking.outcome_updated", {
-			bookingId: args.bookingId,
-			leadId: booking.leadId,
-			data: {
-				attendance: args.tenue,
-				outcome: args.issue ?? "en_attente",
-				amount:
-					args.issue === "gagne" && args.issueAmountCents !== undefined
-						? args.issueAmountCents / 100
-						: null,
-			},
-		});
-
-		await logBookingActivity(ctx, {
-			bookingId: args.bookingId,
-			leadId: booking.leadId,
-			type: "outcome_recorded",
-			actorType: "user",
-			actorUserId: caller._id,
-			payload: {
-				tenue: args.tenue,
-				issue: args.issue,
-				issueAmountCents: args.issueAmountCents,
-				issueLossReasonId: args.issueLossReasonId,
-			},
-		});
-	},
+export const setOutcome = mutation({
+	args: outcomeArgs,
+	handler: async (ctx, args) =>
+		applyOutcome(ctx, await getAuthenticatedUser(ctx), args),
 });
 
 // Manual admin booking — bypass disqualification + rolling window guard.
