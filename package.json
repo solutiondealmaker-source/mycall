@@ -8,6 +8,7 @@
 		"seats": "bun scripts/seats.ts",
 		"status": "bun scripts/status.ts",
 		"atlas-key": "bun scripts/atlas-key.ts",
+		"webhook": "bun scripts/webhook.ts",
 		"dev": "next dev",
 		"convex": "bunx convex dev",
 		"build": "next build",
